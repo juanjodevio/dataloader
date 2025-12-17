@@ -153,10 +153,13 @@ class Destination(Protocol):
 **Registry Pattern** (`connectors/registry.py`):
 
 ```python
-# Registration
-register_source("postgres", create_postgres_source)
+# Registration via decorator (preferred)
+@register_source("postgres")
+def create_postgres_source(config, connection):
+    return PostgresSource(config, connection)
+
+# Or direct call
 register_source("csv", create_csv_source)
-register_source("s3", create_s3_source)
 
 # Retrieval
 source = get_source("postgres", config, connection)
@@ -181,18 +184,64 @@ source = get_source("postgres", config, connection)
   - **boto3** for discovery + metadata (fast, explicit, cheap)
   - **fsspec** for reads/writes (clean file-like interface)
 
-### 5.3 Transform Pipeline 🚧 Planned
+### 5.3 Transform Pipeline ✅ Implemented
 
-Supports:
+Sequential pipeline executor that applies transform steps to batches.
 
-- rename columns
-- cast columns
-- add/drop columns
-- audit fields
-- custom Python functions
-- optional Rust transform kernels
+**Pipeline Executor** (`transforms/pipeline.py`):
 
-Acts similarly to a mini-dbt layer inside the runtime engine.
+```python
+from dataloader.transforms import TransformPipeline
+from dataloader.models.transform_config import TransformConfig
+
+pipeline = TransformPipeline(recipe.transform)
+transformed_batch = pipeline.apply(batch)
+```
+
+**Transform Registry** (`transforms/registry.py`):
+
+```python
+# Registration via decorator
+@register_transform("rename_columns")
+def create_rename_transform(config):
+    return RenameColumnsTransform(config)
+
+# Retrieval
+transform = get_transform("rename_columns", {"mapping": {"old": "new"}})
+```
+
+**Implemented Transforms:**
+
+| Transform | Config | Description |
+|-----------|--------|-------------|
+| `rename_columns` | `mapping: {old: new}` | Rename columns in batch |
+| `cast` | `columns: {col: type}` | Cast column types (str, int, float, datetime) |
+| `add_column` | `name`, `value` | Add column with constant or template value |
+
+**Example Pipeline:**
+
+```yaml
+transform:
+  steps:
+    - type: rename_columns
+      mapping:
+        fname: first_name
+        lname: last_name
+    - type: cast
+      columns:
+        age: int
+        created_at: datetime
+    - type: add_column
+      name: source
+      value: "{{ recipe.name }}"
+```
+
+**Features:**
+- Sequential step execution with fail-fast error handling
+- Batch validation after each step
+- Metadata preservation through transforms
+- Template support in `add_column` values
+- Extensible via `@register_transform` decorator
 
 ### 5.4 State Management ✅ Protocol Defined
 
@@ -325,15 +374,17 @@ dataloader list-connectors
 - [x] Template rendering (`{{ env.* }}`, `{{ var.* }}`)
 - [x] Delete semantics for inheritance
 - [x] Source/Destination protocols
-- [x] Connector registry
+- [x] Connector registry (decorator pattern)
 - [x] PostgresSource (SQLAlchemy)
 - [x] CSVSource
 - [x] S3Source (boto3 + fsspec)
 - [x] Batch and State models
 - [x] Exception hierarchy
+- [x] Transform pipeline executor
+- [x] Transform registry (decorator pattern)
+- [x] Basic transforms (rename_columns, cast, add_column)
 - [ ] DuckDB destination
 - [ ] Execution engine
-- [ ] Basic transforms
 - [ ] Local JSON state backend
 
 ### v0.2 – Reliable MVP
@@ -396,7 +447,13 @@ dataloader/
       __init__.py
       source.py           # S3Source (boto3 + fsspec)
     duckdb/               # (planned)
-  transforms/             # (planned)
+  transforms/
+    __init__.py           # Registry + exports
+    registry.py           # Transform registry
+    pipeline.py           # TransformPipeline executor
+    rename.py             # rename_columns transform
+    cast.py               # cast transform
+    add_column.py         # add_column transform
 examples/
   recipes/
     base_recipe.yaml
@@ -500,4 +557,4 @@ Unresolved templates raise `RecipeError` with context.
 
 This architecture enables a powerful, extensible, and high-performance data loading system centered on recipes, state, and clean abstractions. The ability to layer recipes (`extends:`) gives the system a unique advantage: reproducible, standardized, maintainable pipelines that work across teams and environments.
 
-**Current Status:** v0.1 prototype in progress with recipe layer, source connectors, and core infrastructure complete.
+**Current Status:** v0.1 prototype in progress with recipe layer, source connectors, transform pipeline, and core infrastructure complete.
