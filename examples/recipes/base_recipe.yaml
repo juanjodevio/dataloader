@@ -1,0 +1,15 @@
+name: base_recipe
+
+transform:
+  steps:
+    - type: add_column
+      name: _loaded_at
+      value: now()
+    - type: add_column
+      name: _source
+      value: "{{ recipe.name }}"
+
+runtime:
+  batch_size: 20000
+  max_retries: 5
+
