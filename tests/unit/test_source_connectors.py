@@ -19,7 +19,7 @@ from dataloader.models.source_config import IncrementalConfig, SourceConfig
 
 
 class TestPostgresSource:
-    """Tests for PostgresSource connector."""
+    """Tests for PostgresSource connector with SQLAlchemy."""
 
     @pytest.fixture
     def postgres_config(self) -> SourceConfig:
@@ -59,72 +59,89 @@ class TestPostgresSource:
         source = PostgresSource(postgres_config, connection)
 
         assert source._batch_size == 500
-        assert source._connection_params["host"] == "override-host"
-        assert source._connection_params["dbname"] == "testdb"
-        assert source._conn is None
+        assert source._engine is None
 
-    def test_postgres_source_uses_config_defaults(self, postgres_config: SourceConfig):
-        """Test that PostgresSource falls back to config values."""
-        connection: dict[str, Any] = {}
-        source = PostgresSource(postgres_config, connection)
+    def test_postgres_connection_url_with_password(self, postgres_config: SourceConfig):
+        """Test connection URL building with password."""
+        source = PostgresSource(postgres_config, {})
+        url = source._build_connection_url()
 
-        assert source._connection_params["host"] == "localhost"
-        assert source._connection_params["port"] == 5432
-        assert source._connection_params["dbname"] == "testdb"
-        assert source._connection_params["user"] == "testuser"
+        assert "postgresql+psycopg2://" in url
+        assert "testuser:testpass@" in url
+        assert "localhost:5432/testdb" in url
+
+    def test_postgres_connection_url_without_password(self, postgres_config: SourceConfig):
+        """Test connection URL building without password."""
+        postgres_config.password = None
+        source = PostgresSource(postgres_config, {})
+        url = source._build_connection_url()
+
+        assert "testuser@localhost" in url
+        assert ":testpass" not in url
+
+    def test_postgres_connection_url_custom_dialect(self, postgres_config: SourceConfig):
+        """Test connection URL with custom dialect."""
+        source = PostgresSource(postgres_config, {"dialect": "mysql+pymysql"})
+        url = source._build_connection_url()
+
+        assert "mysql+pymysql://" in url
 
     def test_postgres_source_default_port(self, postgres_config: SourceConfig):
         """Test that default port is used when not specified."""
         postgres_config.port = None
         source = PostgresSource(postgres_config, {})
+        url = source._build_connection_url()
 
-        assert source._connection_params["port"] == PostgresSource.DEFAULT_PORT
+        assert ":5432/" in url
 
-    @patch("dataloader.connectors.postgres.source.psycopg2.connect")
-    def test_postgres_connection_error(
-        self, mock_connect: MagicMock, postgres_config: SourceConfig
+    @patch("dataloader.connectors.postgres.source.create_engine")
+    def test_postgres_engine_creation_error(
+        self, mock_create_engine: MagicMock, postgres_config: SourceConfig
     ):
-        """Test that connection errors raise ConnectorError."""
-        import psycopg2
+        """Test that engine creation errors raise ConnectorError."""
+        from sqlalchemy.exc import SQLAlchemyError
 
-        mock_connect.side_effect = psycopg2.Error("Connection refused")
+        mock_create_engine.side_effect = SQLAlchemyError("Connection refused")
         source = PostgresSource(postgres_config, {})
 
         with pytest.raises(ConnectorError) as exc_info:
-            source._connect()
+            source._get_engine()
 
-        assert "Failed to connect to PostgreSQL" in str(exc_info.value)
+        assert "Failed to create database engine" in str(exc_info.value)
         assert exc_info.value.context["host"] == "localhost"
 
-    @patch("dataloader.connectors.postgres.source.psycopg2.connect")
+    @patch("dataloader.connectors.postgres.source.create_engine")
+    @patch("dataloader.connectors.postgres.source.inspect")
     def test_postgres_read_batches(
-        self, mock_connect: MagicMock, postgres_config: SourceConfig
+        self,
+        mock_inspect: MagicMock,
+        mock_create_engine: MagicMock,
+        postgres_config: SourceConfig,
     ):
-        """Test reading batches from Postgres."""
-        # Setup mock connection and cursor
-        mock_conn = MagicMock()
-        mock_connect.return_value = mock_conn
+        """Test reading batches from Postgres using SQLAlchemy."""
+        # Setup mock engine
+        mock_engine = MagicMock()
+        mock_create_engine.return_value = mock_engine
 
-        # Mock schema query result
-        mock_schema_cursor = MagicMock()
-        mock_schema_cursor.fetchall.return_value = [
-            ("id", "integer"),
-            ("name", "varchar"),
+        # Setup mock inspector for schema
+        mock_inspector = MagicMock()
+        mock_inspect.return_value = mock_inspector
+        mock_inspector.get_columns.return_value = [
+            {"name": "id", "type": "INTEGER"},
+            {"name": "name", "type": "VARCHAR(100)"},
         ]
-        mock_schema_cursor.__enter__ = MagicMock(return_value=mock_schema_cursor)
-        mock_schema_cursor.__exit__ = MagicMock(return_value=False)
 
-        # Mock data cursor result
-        mock_data_cursor = MagicMock()
-        mock_data_cursor.fetchmany.side_effect = [
+        # Setup mock connection and result
+        mock_conn = MagicMock()
+        mock_engine.connect.return_value.__enter__ = MagicMock(return_value=mock_conn)
+        mock_engine.connect.return_value.__exit__ = MagicMock(return_value=False)
+
+        mock_result = MagicMock()
+        mock_conn.execution_options.return_value.execute.return_value = mock_result
+        mock_result.fetchmany.side_effect = [
             [(1, "Alice"), (2, "Bob")],  # First batch
             [],  # No more data
         ]
-        mock_data_cursor.__enter__ = MagicMock(return_value=mock_data_cursor)
-        mock_data_cursor.__exit__ = MagicMock(return_value=False)
-
-        # Configure cursor() to return different cursors based on call
-        mock_conn.cursor.side_effect = [mock_schema_cursor, mock_data_cursor]
 
         source = PostgresSource(postgres_config, {"batch_size": 100})
         state = State()
@@ -136,44 +153,44 @@ class TestPostgresSource:
         assert batches[0].rows == [[1, "Alice"], [2, "Bob"]]
         assert batches[0].metadata["source_type"] == "postgres"
         assert batches[0].metadata["table"] == "users"
-        mock_conn.close.assert_called_once()
+        mock_engine.dispose.assert_called_once()
 
-    @patch("dataloader.connectors.postgres.source.psycopg2.connect")
+    @patch("dataloader.connectors.postgres.source.create_engine")
+    @patch("dataloader.connectors.postgres.source.inspect")
     def test_postgres_incremental_query(
-        self, mock_connect: MagicMock, incremental_postgres_config: SourceConfig
+        self,
+        mock_inspect: MagicMock,
+        mock_create_engine: MagicMock,
+        incremental_postgres_config: SourceConfig,
     ):
         """Test that incremental loads use cursor filtering."""
-        mock_conn = MagicMock()
-        mock_connect.return_value = mock_conn
+        mock_engine = MagicMock()
+        mock_create_engine.return_value = mock_engine
 
-        mock_schema_cursor = MagicMock()
-        mock_schema_cursor.fetchall.return_value = [
-            ("id", "integer"),
-            ("updated_at", "timestamp"),
+        mock_inspector = MagicMock()
+        mock_inspect.return_value = mock_inspector
+        mock_inspector.get_columns.return_value = [
+            {"name": "id", "type": "INTEGER"},
+            {"name": "updated_at", "type": "TIMESTAMP"},
         ]
-        mock_schema_cursor.__enter__ = MagicMock(return_value=mock_schema_cursor)
-        mock_schema_cursor.__exit__ = MagicMock(return_value=False)
 
-        mock_data_cursor = MagicMock()
-        mock_data_cursor.fetchmany.side_effect = [[], []]
-        mock_data_cursor.__enter__ = MagicMock(return_value=mock_data_cursor)
-        mock_data_cursor.__exit__ = MagicMock(return_value=False)
+        mock_conn = MagicMock()
+        mock_engine.connect.return_value.__enter__ = MagicMock(return_value=mock_conn)
+        mock_engine.connect.return_value.__exit__ = MagicMock(return_value=False)
 
-        mock_conn.cursor.side_effect = [mock_schema_cursor, mock_data_cursor]
+        mock_result = MagicMock()
+        mock_conn.execution_options.return_value.execute.return_value = mock_result
+        mock_result.fetchmany.side_effect = [[], []]
 
         source = PostgresSource(incremental_postgres_config, {})
         state = State(cursor_values={"updated_at": "2024-01-01"})
 
-        list(source.read_batches(state))
+        # Build query to test
+        query, params = source._build_query(state)
 
-        # Verify the query includes WHERE clause
-        execute_call = mock_data_cursor.execute.call_args
-        query = execute_call[0][0]
-        params = execute_call[0][1]
-
-        assert 'WHERE "updated_at" > %s' in query
+        assert 'WHERE "updated_at" > :cursor_value' in query
         assert 'ORDER BY "updated_at"' in query
-        assert params == ["2024-01-01"]
+        assert params["cursor_value"] == "2024-01-01"
 
     def test_create_postgres_source_factory(self, postgres_config: SourceConfig):
         """Test the factory function creates PostgresSource."""
@@ -357,7 +374,7 @@ class TestCSVSource:
 
 
 class TestS3Source:
-    """Tests for S3Source connector."""
+    """Tests for S3Source connector with boto3 + fsspec."""
 
     @pytest.fixture
     def s3_config(self) -> SourceConfig:
@@ -377,9 +394,18 @@ class TestS3Source:
         source = S3Source(s3_config, connection)
 
         assert source._batch_size == 500
-        assert source._client_config["endpoint_url"] == "http://localhost:4566"
-        assert source._client_config["aws_access_key_id"] == "AKIAIOSFODNN7EXAMPLE"
-        assert source._client_config["region_name"] == "us-east-1"
+        assert source._boto_config["endpoint_url"] == "http://localhost:4566"
+        assert source._boto_config["aws_access_key_id"] == "AKIAIOSFODNN7EXAMPLE"
+        assert source._boto_config["region_name"] == "us-east-1"
+
+    def test_s3_source_fsspec_config(self, s3_config: SourceConfig):
+        """Test fsspec configuration building."""
+        connection = {"endpoint_url": "http://localhost:4566"}
+        source = S3Source(s3_config, connection)
+
+        assert source._fsspec_config["key"] == "AKIAIOSFODNN7EXAMPLE"
+        assert source._fsspec_config["secret"] == s3_config.secret_key
+        assert source._fsspec_config["client_kwargs"]["endpoint_url"] == "http://localhost:4566"
 
     def test_s3_source_client_config_from_connection(self, s3_config: SourceConfig):
         """Test that connection dict takes precedence."""
@@ -390,13 +416,13 @@ class TestS3Source:
         }
         source = S3Source(s3_config, connection)
 
-        assert source._client_config["aws_access_key_id"] == "OVERRIDE_KEY"
-        assert source._client_config["aws_secret_access_key"] == "OVERRIDE_SECRET"
-        assert source._client_config["region_name"] == "eu-west-1"
+        assert source._boto_config["aws_access_key_id"] == "OVERRIDE_KEY"
+        assert source._boto_config["aws_secret_access_key"] == "OVERRIDE_SECRET"
+        assert source._boto_config["region_name"] == "eu-west-1"
 
     @patch("dataloader.connectors.s3.source.boto3.client")
     def test_s3_list_objects(self, mock_boto_client: MagicMock, s3_config: SourceConfig):
-        """Test listing objects from S3."""
+        """Test listing objects from S3 using boto3."""
         mock_client = MagicMock()
         mock_boto_client.return_value = mock_client
 
@@ -494,38 +520,53 @@ class TestS3Source:
 
         assert filtered == objects
 
-    @patch("dataloader.connectors.s3.source.boto3.client")
-    def test_s3_download_error(
-        self, mock_boto_client: MagicMock, s3_config: SourceConfig
+    @patch("dataloader.connectors.s3.source.fsspec.open")
+    def test_s3_read_file_with_fsspec(
+        self, mock_fsspec_open: MagicMock, s3_config: SourceConfig
     ):
-        """Test that download errors raise ConnectorError."""
-        from botocore.exceptions import ClientError
+        """Test reading S3 object using fsspec."""
+        mock_file = MagicMock()
+        mock_file.read.return_value = "id,name\n1,Alice\n2,Bob\n"
+        mock_fsspec_open.return_value.__enter__ = MagicMock(return_value=mock_file)
+        mock_fsspec_open.return_value.__exit__ = MagicMock(return_value=False)
 
-        mock_client = MagicMock()
-        mock_boto_client.return_value = mock_client
+        source = S3Source(s3_config, {})
+        content = source._read_file_with_fsspec("test-bucket", "data/test.csv")
 
-        mock_client.download_fileobj.side_effect = ClientError(
-            {"Error": {"Code": "NoSuchKey", "Message": "Key not found"}},
-            "GetObject",
-        )
+        assert content == "id,name\n1,Alice\n2,Bob\n"
+        mock_fsspec_open.assert_called_once()
+        # Verify the s3 path format
+        call_args = mock_fsspec_open.call_args
+        assert call_args[0][0] == "s3://test-bucket/data/test.csv"
+
+    @patch("dataloader.connectors.s3.source.fsspec.open")
+    def test_s3_read_file_error(
+        self, mock_fsspec_open: MagicMock, s3_config: SourceConfig
+    ):
+        """Test that fsspec errors raise ConnectorError."""
+        mock_fsspec_open.side_effect = Exception("Connection failed")
 
         source = S3Source(s3_config, {})
 
         with pytest.raises(ConnectorError) as exc_info:
-            source._download_object("test-bucket", "nonexistent.csv")
+            source._read_file_with_fsspec("test-bucket", "data/test.csv")
 
-        assert "Failed to download S3 object" in str(exc_info.value)
-        assert exc_info.value.context["error_code"] == "NoSuchKey"
+        assert "Failed to read S3 object with fsspec" in str(exc_info.value)
+        assert exc_info.value.context["key"] == "data/test.csv"
 
     @patch("dataloader.connectors.s3.source.boto3.client")
+    @patch("dataloader.connectors.s3.source.fsspec.open")
     def test_s3_read_batches_integration(
-        self, mock_boto_client: MagicMock, s3_config: SourceConfig
+        self,
+        mock_fsspec_open: MagicMock,
+        mock_boto_client: MagicMock,
+        s3_config: SourceConfig,
     ):
-        """Test full read_batches flow with mocked S3."""
+        """Test full read_batches flow with mocked boto3 and fsspec."""
         mock_client = MagicMock()
         mock_boto_client.return_value = mock_client
 
-        # Mock list objects
+        # Mock list objects with boto3
         mock_paginator = MagicMock()
         mock_client.get_paginator.return_value = mock_paginator
         mock_paginator.paginate.return_value = [
@@ -540,13 +581,11 @@ class TestS3Source:
             }
         ]
 
-        # Create temp CSV file to mock download
-        csv_content = b"id,name\n1,Alice\n2,Bob\n"
-
-        def mock_download(bucket, key, fileobj):
-            fileobj.write(csv_content)
-
-        mock_client.download_fileobj.side_effect = mock_download
+        # Mock file read with fsspec
+        mock_file = MagicMock()
+        mock_file.read.return_value = "id,name\n1,Alice\n2,Bob\n"
+        mock_fsspec_open.return_value.__enter__ = MagicMock(return_value=mock_file)
+        mock_fsspec_open.return_value.__exit__ = MagicMock(return_value=False)
 
         source = S3Source(s3_config, {"batch_size": 100})
         state = State()
@@ -630,4 +669,3 @@ class TestConnectorRegistration:
         source = get_source("s3", config, {})
 
         assert isinstance(source, S3Source)
-
