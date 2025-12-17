@@ -4,7 +4,7 @@ This module provides a registry pattern for connector implementations,
 allowing dynamic registration and retrieval of source/destination factories.
 """
 
-from typing import Callable
+from typing import Callable, overload
 
 from dataloader.connectors.base import Destination, Source
 from dataloader.core.exceptions import ConnectorError
@@ -20,54 +20,100 @@ _source_registry: dict[str, SourceFactory] = {}
 _destination_registry: dict[str, DestinationFactory] = {}
 
 
-def register_source(connector_type: str, factory: SourceFactory) -> None:
+@overload
+def register_source(connector_type: str) -> Callable[[SourceFactory], SourceFactory]: ...
+
+
+@overload
+def register_source(connector_type: str, factory: SourceFactory) -> None: ...
+
+
+def register_source(
+    connector_type: str,
+    factory: SourceFactory | None = None,
+) -> Callable[[SourceFactory], SourceFactory] | None:
     """Register a source connector factory.
+
+    Can be used as a decorator or called directly:
+
+        # As decorator
+        @register_source("postgres")
+        def create_postgres_source(config, connection):
+            return PostgresSource(config, connection)
+
+        # Direct call
+        register_source("postgres", create_postgres_source)
 
     Args:
         connector_type: Unique identifier for the connector (e.g., 'postgres', 'csv').
-        factory: Factory function that creates Source instances.
-                 Signature: (config: SourceConfig, connection: dict) -> Source
+        factory: Factory function (optional if used as decorator).
 
     Raises:
         ConnectorError: If a connector with the same type is already registered.
-
-    Example:
-        def create_postgres_source(config: SourceConfig, connection: dict) -> Source:
-            return PostgresSource(config, connection)
-
-        register_source("postgres", create_postgres_source)
     """
-    if connector_type in _source_registry:
-        raise ConnectorError(
-            f"Source connector '{connector_type}' is already registered",
-            context={"connector_type": connector_type},
-        )
-    _source_registry[connector_type] = factory
+
+    def _register(f: SourceFactory) -> SourceFactory:
+        if connector_type in _source_registry:
+            raise ConnectorError(
+                f"Source connector '{connector_type}' is already registered",
+                context={"connector_type": connector_type},
+            )
+        _source_registry[connector_type] = f
+        return f
+
+    if factory is not None:
+        _register(factory)
+        return None
+
+    return _register
 
 
-def register_destination(connector_type: str, factory: DestinationFactory) -> None:
+@overload
+def register_destination(connector_type: str) -> Callable[[DestinationFactory], DestinationFactory]: ...
+
+
+@overload
+def register_destination(connector_type: str, factory: DestinationFactory) -> None: ...
+
+
+def register_destination(
+    connector_type: str,
+    factory: DestinationFactory | None = None,
+) -> Callable[[DestinationFactory], DestinationFactory] | None:
     """Register a destination connector factory.
+
+    Can be used as a decorator or called directly:
+
+        # As decorator
+        @register_destination("duckdb")
+        def create_duckdb_destination(config, connection):
+            return DuckDBDestination(config, connection)
+
+        # Direct call
+        register_destination("duckdb", create_duckdb_destination)
 
     Args:
         connector_type: Unique identifier for the connector (e.g., 'duckdb', 's3').
-        factory: Factory function that creates Destination instances.
-                 Signature: (config: DestinationConfig, connection: dict) -> Destination
+        factory: Factory function (optional if used as decorator).
 
     Raises:
         ConnectorError: If a connector with the same type is already registered.
-
-    Example:
-        def create_duckdb_destination(config: DestinationConfig, connection: dict) -> Destination:
-            return DuckDBDestination(config, connection)
-
-        register_destination("duckdb", create_duckdb_destination)
     """
-    if connector_type in _destination_registry:
-        raise ConnectorError(
-            f"Destination connector '{connector_type}' is already registered",
-            context={"connector_type": connector_type},
-        )
-    _destination_registry[connector_type] = factory
+
+    def _register(f: DestinationFactory) -> DestinationFactory:
+        if connector_type in _destination_registry:
+            raise ConnectorError(
+                f"Destination connector '{connector_type}' is already registered",
+                context={"connector_type": connector_type},
+            )
+        _destination_registry[connector_type] = f
+        return f
+
+    if factory is not None:
+        _register(factory)
+        return None
+
+    return _register
 
 
 def get_source(

@@ -5,6 +5,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Iterable
 
+from dataloader.connectors.registry import register_source
 from dataloader.core.batch import DictBatch
 from dataloader.core.exceptions import ConnectorError
 from dataloader.core.state import State
@@ -267,6 +268,7 @@ class CSVSource:
             ) from e
 
 
+@register_source("csv")
 def create_csv_source(config: SourceConfig, connection: dict[str, Any]) -> CSVSource:
     """Factory function for creating CSVSource instances."""
     return CSVSource(config, connection)

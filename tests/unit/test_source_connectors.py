@@ -620,9 +620,9 @@ class TestConnectorRegistration:
     @pytest.fixture(autouse=True)
     def ensure_registration(self):
         """Ensure built-in connectors are registered before each test."""
-        from dataloader.connectors import register_builtin_connectors
+        from dataloader.connectors import reregister_builtins
 
-        register_builtin_connectors()
+        reregister_builtins()
 
     def test_sources_registered(self):
         """Test that built-in connectors are registered."""

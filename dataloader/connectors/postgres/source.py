@@ -6,6 +6,7 @@ from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import SQLAlchemyError
 
+from dataloader.connectors.registry import register_source
 from dataloader.core.batch import DictBatch
 from dataloader.core.exceptions import ConnectorError
 from dataloader.core.state import State
@@ -189,6 +190,7 @@ class PostgresSource:
             self._close()
 
 
+@register_source("postgres")
 def create_postgres_source(config: SourceConfig, connection: dict[str, Any]) -> PostgresSource:
     """Factory function for creating PostgresSource instances."""
     return PostgresSource(config, connection)

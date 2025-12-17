@@ -9,6 +9,7 @@ import boto3
 import fsspec
 from botocore.exceptions import BotoCoreError, ClientError
 
+from dataloader.connectors.registry import register_source
 from dataloader.core.batch import DictBatch
 from dataloader.core.exceptions import ConnectorError
 from dataloader.core.state import State
@@ -371,6 +372,7 @@ class S3Source:
             ) from e
 
 
+@register_source("s3")
 def create_s3_source(config: SourceConfig, connection: dict[str, Any]) -> S3Source:
     """Factory function for creating S3Source instances."""
     return S3Source(config, connection)
