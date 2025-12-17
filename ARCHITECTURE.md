@@ -41,7 +41,10 @@ extends: base_recipe.yaml
 
 source:
   type: postgres
-  conn_id: src_postgres
+  host: "{{ env.DB_HOST }}"
+  database: "{{ env.DB_NAME }}"
+  user: "{{ env.DB_USER }}"
+  password: "{{ env.DB_PASSWORD }}"
   table: public.customers
   incremental:
     strategy: cursor
@@ -56,7 +59,8 @@ transform:
 
 destination:
   type: redshift
-  conn_id: dw_redshift
+  host: "{{ env.DW_HOST }}"
+  database: "{{ env.DW_DB }}"
   table: dw.customers
   write_mode: merge
   merge_keys: [id]
@@ -77,6 +81,8 @@ runtime:
      ┌────────────────────────┐
      │   Recipe Model Layer   │
      │ (Pydantic-based schema)│
+     │  + Template Rendering  │
+     │  + Inheritance Merger  │
      └───────────┬────────────┘
                  │ Build Execution Plan
                  ▼
@@ -99,44 +105,83 @@ runtime:
 
 ## 5. Core Components
 
-### 5.1 Recipe Model Layer
+### 5.1 Recipe Model Layer ✅ Implemented
 
 Responsible for:
 
-- Parsing YAML/JSON
-- Schema validation via Pydantic
-- Applying inheritance via `extends:`
-- Merging default values
+- Parsing YAML/JSON via `RecipeLoader`
+- Schema validation via Pydantic models
+- Applying inheritance via `extends:` with `RecipeMerger`
+- Template rendering (`{{ env.VAR }}`, `{{ var.NAME }}`, `{{ recipe.name }}`)
+- Delete semantics for inheritance overrides
 - Constructing execution plans
 
-Objects:
+**Implemented Models:**
 
-- `Recipe`
-- `SourceConfig`
-- `TransformConfig`
-- `DestinationConfig`
-- `RuntimeConfig`
+| Model | File | Description |
+|-------|------|-------------|
+| `Recipe` | `models/recipe.py` | Root recipe with name, extends, source, destination, transform, runtime |
+| `SourceConfig` | `models/source_config.py` | Source configuration with type-specific validation |
+| `DestinationConfig` | `models/destination_config.py` | Destination configuration with write modes |
+| `TransformConfig` | `models/transform_config.py` | Transform pipeline with steps |
+| `RuntimeConfig` | `models/runtime_config.py` | Batch size, retries, parallelism |
+| `IncrementalConfig` | `models/source_config.py` | Cursor-based incremental strategy |
 
-### 5.2 Connectors – Plug-in Architecture
-
-Two key interfaces:
+**Template System:**
 
 ```python
+# Supported template patterns
+"{{ env.DB_HOST }}"      # Environment variables
+"{{ var.table_name }}"   # CLI-provided variables  
+"{{ recipe.name }}"      # Recipe metadata
+```
+
+### 5.2 Connectors – Plug-in Architecture ✅ Implemented
+
+Two key protocols defined in `connectors/base.py`:
+
+```python
+@runtime_checkable
 class Source(Protocol):
     def read_batches(self, state: State) -> Iterable[Batch]: ...
 
+@runtime_checkable
 class Destination(Protocol):
-    def write_batch(self, batch: Batch, state: State): ...
+    def write_batch(self, batch: Batch, state: State) -> None: ...
 ```
 
-Connectors implemented as plug-ins registered by type.
+**Registry Pattern** (`connectors/registry.py`):
 
-Examples:
+```python
+# Registration
+register_source("postgres", create_postgres_source)
+register_source("csv", create_csv_source)
+register_source("s3", create_s3_source)
 
-- **Sources:** Postgres, MySQL, S3, REST, BigQuery
-- **Destinations:** Redshift, Snowflake, S3, DuckDB
+# Retrieval
+source = get_source("postgres", config, connection)
+```
 
-### 5.3 Transform Pipeline
+**Implemented Source Connectors:**
+
+| Connector | Stack | Features |
+|-----------|-------|----------|
+| `PostgresSource` | SQLAlchemy + psycopg2 | Streaming results, cursor-based incremental, schema introspection |
+| `CSVSource` | stdlib csv | Batched reading, type inference, header detection |
+| `S3Source` | boto3 + fsspec | Object discovery via boto3, reads via fsspec, incremental by modification time |
+
+**Technology Choices:**
+
+- **Databases (Postgres, RDS):** SQLAlchemy for dialect abstraction
+  - Supports Postgres, MySQL, Redshift via dialect parameter
+  - Connection pooling, streaming results
+  - Schema introspection via `inspect()`
+
+- **S3 and Filesystem:**
+  - **boto3** for discovery + metadata (fast, explicit, cheap)
+  - **fsspec** for reads/writes (clean file-like interface)
+
+### 5.3 Transform Pipeline 🚧 Planned
 
 Supports:
 
@@ -149,40 +194,77 @@ Supports:
 
 Acts similarly to a mini-dbt layer inside the runtime engine.
 
-### 5.4 Incremental State Management
+### 5.4 State Management ✅ Protocol Defined
 
-State backends:
+**State Model** (`core/state.py`):
 
-- Local JSON
+```python
+class State(BaseModel):
+    cursor_values: dict[str, Any]   # Last processed cursor per column
+    watermarks: dict[str, Any]      # High watermarks
+    checkpoints: list[dict]         # Recovery checkpoints
+    metadata: dict[str, Any]        # Additional state metadata
+```
+
+**State Backend Protocol** (`core/state_backend.py`):
+
+```python
+class StateBackend(Protocol):
+    def load(self, recipe_name: str) -> State: ...
+    def save(self, recipe_name: str, state: State) -> None: ...
+```
+
+Planned backends:
+- Local JSON ✅ Implemented
 - S3
 - DynamoDB
 - SQL table backend
 
-The incremental state is used for:
+### 5.5 Batch Format ✅ Implemented
 
-- Cursor values
-- High-watermarks
-- Sync checkpoints
-- Recovery after failure
-
-Backend protocol:
+**Batch Protocol** (`core/batch.py`):
 
 ```python
-class StateBackend(Protocol):
-    def load(self, recipe_name: str) -> dict: ...
-    def save(self, recipe_name: str, state: dict): ...
+class Batch(Protocol):
+    @property
+    def columns(self) -> list[str]: ...
+    
+    @property
+    def rows(self) -> list[list[Any]]: ...
+    
+    @property
+    def metadata(self) -> dict[str, Any]: ...
+    
+    @property
+    def row_count(self) -> int: ...
+    
+    def to_dict(self) -> dict[str, Any]: ...
 ```
 
-### 5.5 Execution Engine
+**DictBatch Implementation:**
 
-Handles:
+```python
+batch = DictBatch(
+    columns=["id", "name", "updated_at"],
+    rows=[[1, "Alice", "2024-01-01"], [2, "Bob", "2024-01-02"]],
+    metadata={"source_type": "postgres", "table": "users"}
+)
+```
 
-- Batch retrieval
-- Transform pipeline execution
-- Destination writes
-- Incremental state updates
-- Retry logic
-- Logging/metrics
+### 5.6 Exception Hierarchy ✅ Implemented
+
+```python
+DataLoaderError          # Base exception
+├── RecipeError          # Recipe parsing/validation failures
+├── ConnectorError       # Connector operations failures
+├── TransformError       # Transform execution failures
+├── StateError           # State backend operations failures
+└── EngineError          # Execution engine failures
+```
+
+All exceptions include structured `context` dict for debugging.
+
+### 5.7 Execution Engine 🚧 Planned
 
 Core loop:
 
@@ -193,7 +275,7 @@ for batch in source.read_batches(state):
     state_backend.save(recipe.name, state)
 ```
 
-## 6. Rust Engine (Optional)
+## 6. Rust Engine (Optional) 🔮 Future
 
 Rust is introduced for:
 
@@ -208,31 +290,51 @@ Rust is introduced for:
 ### 7.1 Python API
 
 ```python
-from datacook import Recipe, run_recipe
-from datacook.state import LocalStateBackend
+from dataloader.models import Recipe
+from dataloader.models.loader import RecipeLoader
 
-recipe = Recipe.from_yaml("recipes/customers.yaml")
-run_recipe(recipe, LocalStateBackend(".state"))
+# Load recipe with inheritance and templates
+loader = RecipeLoader()
+recipe = loader.load("recipes/customers.yaml", cli_vars={"env": "prod"})
+
+# Get source connector
+from dataloader.connectors import get_source
+source = get_source(recipe.source.type, recipe.source, connection_dict)
+
+# Read batches
+for batch in source.read_batches(state):
+    print(f"Read {batch.row_count} rows")
 ```
 
-### 7.2 CLI
+### 7.2 CLI 🚧 Planned
 
 ```bash
-datacook init
-datacook run recipe.yaml
-datacook validate recipe.yaml
-datacook show-state <recipe>
-datacook list-connectors
+dataloader init
+dataloader run recipe.yaml
+dataloader validate recipe.yaml
+dataloader show-state <recipe>
+dataloader list-connectors
 ```
 
 ## 8. Roadmap
 
-### v0.1 – Prototype
+### v0.1 – Prototype 🔄 In Progress
 
-- Python-only engine
-- Minimal connectors (Postgres, CSV, DuckDB, S3)
-- Local JSON state
-- Basic transforms
+- [x] Recipe model layer (Pydantic)
+- [x] Recipe inheritance (`extends:`)
+- [x] Template rendering (`{{ env.* }}`, `{{ var.* }}`)
+- [x] Delete semantics for inheritance
+- [x] Source/Destination protocols
+- [x] Connector registry
+- [x] PostgresSource (SQLAlchemy)
+- [x] CSVSource
+- [x] S3Source (boto3 + fsspec)
+- [x] Batch and State models
+- [x] Exception hierarchy
+- [ ] DuckDB destination
+- [ ] Execution engine
+- [ ] Basic transforms
+- [ ] Local JSON state backend
 
 ### v0.2 – Reliable MVP
 
@@ -259,45 +361,74 @@ datacook list-connectors
 | Composable macros | Yes | No | No | No |
 | Embeddable | Yes | Partial | No | No |
 
-## 10. Repository Structure (Suggested)
+## 10. Repository Structure
 
 ```
-datacook/
+dataloader/
   core/
-    engine.py
-    state.py
-    batch.py
+    __init__.py
+    batch.py              # Batch protocol and DictBatch
+    engine.py             # Execution engine (planned)
+    exceptions.py         # Exception hierarchy
+    state.py              # State model
+    state_backend.py      # StateBackend protocol
   models/
-    recipe.py
-    source_config.py
-    destination_config.py
+    __init__.py
+    recipe.py             # Recipe model
+    source_config.py      # SourceConfig + IncrementalConfig
+    destination_config.py # DestinationConfig
+    transform_config.py   # TransformConfig + TransformStep
+    runtime_config.py     # RuntimeConfig
+    loader.py             # RecipeLoader with inheritance
+    merger.py             # RecipeMerger for extends:
+    templates.py          # Template rendering engine
   connectors/
+    __init__.py           # Registry + exports
+    base.py               # Source/Destination protocols
+    registry.py           # Connector registry
     postgres/
-    redshift/
+      __init__.py
+      source.py           # PostgresSource (SQLAlchemy)
+    csv/
+      __init__.py
+      source.py           # CSVSource
     s3/
-    duckdb/
-  transforms/
-    rename.py
-    cast.py
-    pipeline.py
-  cli/
-    main.py
-  rust/
-    Cargo.toml
-    src/
-      lib.rs
+      __init__.py
+      source.py           # S3Source (boto3 + fsspec)
+    duckdb/               # (planned)
+  transforms/             # (planned)
 examples/
   recipes/
+    base_recipe.yaml
+    child_recipe.yaml
 tests/
-docs/
+  unit/
+  integration/
+pyproject.toml
 README.md
+ARCHITECTURE.md
 ```
 
-## 11. Recipe Inheritance via `extends:` — Deep Dive
+## 11. Dependencies
+
+```toml
+[project]
+dependencies = [
+    "pydantic>=2.0.0",        # Schema validation
+    "pyyaml>=6.0.0",          # YAML parsing
+    "sqlalchemy>=2.0.0",      # Database abstraction
+    "psycopg2-binary>=2.9.0", # Postgres driver
+    "boto3>=1.26.0",          # S3 discovery/metadata
+    "fsspec>=2023.1.0",       # Unified filesystem interface
+    "s3fs>=2023.1.0",         # S3 backend for fsspec
+]
+```
+
+## 12. Recipe Inheritance via `extends:` — Deep Dive
 
 `extends:` is a central feature that allows recipes to be composed, layered, and reused, similar to configuration inheritance in Chef cookbooks or Terraform modules.
 
-### 11.1 How It Works
+### 12.1 How It Works ✅ Implemented
 
 ```yaml
 extends: base_recipe.yaml
@@ -306,20 +437,12 @@ extends: base_recipe.yaml
 Inheritance applies as:
 
 - Load parent recipe (`base_recipe.yaml`)
-- Deep merge parent → child
+- Deep merge parent → child via `RecipeMerger`
 - Child overrides any field
-- Child can also delete inherited fields
+- Child can delete inherited fields via `delete:` list
 - Result is fully resolved before execution
 
-### 11.2 Benefits
-
-- Shared defaults for all pipelines
-- Environment layering (base → dev → prod)
-- DRY: eliminate duplicate configuration
-- Standardized audit and governance transforms
-- Simplified domain-specific pipeline templates
-
-### 11.3 Merge Rules
+### 12.2 Merge Rules ✅ Implemented
 
 **Scalars → override**
 
@@ -335,11 +458,10 @@ Unspecified keys are inherited.
 
 **Lists → behavior depends:**
 
-- Transform steps → concatenated
-- Macro lists → overridden
-- Connector streams → name-based merge (future)
+- Transform steps → concatenated (parent first, then child)
+- Other lists → overridden
 
-**Delete semantics**
+**Delete semantics** ✅ Implemented
 
 ```yaml
 delete:
@@ -347,109 +469,11 @@ delete:
   - destination.merge_keys
 ```
 
-### 11.4 Example Base Recipe
+Paths are dot-separated. Deletion happens after merge but before model validation.
 
-```yaml
-# base_recipe.yaml
-default_runtime:
-  batch_size: 20000
-  max_retries: 5
-  parallelism: 2
+### 12.3 Multi-level Inheritance ✅ Implemented
 
-transform:
-  steps:
-    - type: add_column
-      name: _loaded_at
-      value: now()
-    - type: add_column
-      name: _source
-      value: "{{ recipe.name }}"
-```
-
-### 11.5 Example Child Recipe
-
-```yaml
-extends: base_recipe.yaml
-
-name: load_orders
-
-source:
-  type: postgres
-  conn_id: src_db
-  table: orders
-
-transform:
-  steps:
-    - type: rename_columns
-      mapping:
-        order_dt: order_date
-
-runtime:
-  batch_size: 5000
-```
-
-Effective transform steps:
-
-1. add `_loaded_at`
-2. add `_source`
-3. rename `order_dt` → `order_date`
-
-### 11.6 Inheritance Patterns
-
-**Pattern 1 – Multi-tiered recipes**
-
-```
-base_recipe.yaml
-↓
-domain_defaults/customers.yaml
-↓
-recipes/load_customers_us.yaml
-```
-
-**Pattern 2 – Environment layering**
-
-```
-base.yaml
-↓
-env/dev.yaml
-↓
-env/prod.yaml
-```
-
-**Pattern 3 – Reusable transform cookbooks**
-
-- `audit.yaml`
-- `pseudonymize.yaml`
-- `anonymize.yaml`
-- `clean_numeric.yaml`
-
-**Pattern 4 – Connector templates**
-
-- `postgres_default.yaml`
-- `redshift_default.yaml`
-- `s3_default.yaml`
-
-### 11.7 Macros + Inheritance
-
-Macros can also be inherited:
-
-```yaml
-# base_recipe.yaml
-macros:
-  audit:
-    - type: add_column
-      name: _audit_ts
-      value: now()
-
-# child
-extends: base_recipe.yaml
-transform:
-  use: [audit]
-```
-
-### 11.8 Multi-level Inheritance
-
-Fully supported:
+Fully supported with cycle detection:
 
 ```
 recipe_c.yaml -->
@@ -459,15 +483,21 @@ recipe_a.yaml
 
 The engine resolves deepest parent first.
 
-Cycle detection prevents infinite loops.
+### 12.4 Template Rendering ✅ Implemented
 
-### 11.9 Future Extensions
+Templates are rendered after inheritance resolution:
 
-- Multiple inheritance (`extends: [a.yaml, b.yaml]` with explicit merge rules)
-- Remote recipe registry
-- Namespaced inheritance (`extends: datacook://defaults/postgres`)
-- URL-based recipes for multi-team ecosystems
+```yaml
+source:
+  host: "{{ env.DB_HOST }}"           # os.environ["DB_HOST"]
+  database: "{{ var.database }}"      # CLI-provided variable
+  table: "{{ recipe.name }}_raw"      # Recipe metadata
+```
 
-## 12. Conclusion
+Unresolved templates raise `RecipeError` with context.
+
+## 13. Conclusion
 
 This architecture enables a powerful, extensible, and high-performance data loading system centered on recipes, state, and clean abstractions. The ability to layer recipes (`extends:`) gives the system a unique advantage: reproducible, standardized, maintainable pipelines that work across teams and environments.
+
+**Current Status:** v0.1 prototype in progress with recipe layer, source connectors, and core infrastructure complete.
