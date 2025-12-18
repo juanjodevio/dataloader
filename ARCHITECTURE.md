@@ -131,10 +131,12 @@ Responsible for:
 
 ```python
 # Supported template patterns
-"{{ env.DB_HOST }}"      # Environment variables
-"{{ var.table_name }}"   # CLI-provided variables  
-"{{ recipe.name }}"      # Recipe metadata
+"{{ env_var('DB_HOST') }}"      # Environment variables (function call)
+"{{ var('table_name') }}"        # CLI-provided variables (function call)
+"{{ recipe.name }}"              # Recipe metadata (dot notation)
 ```
+
+Templates are rendered during recipe loading, allowing connection parameters and other values to be injected from environment variables or CLI arguments. All connection configuration is specified directly in recipes using templates, not via separate connection dictionaries.
 
 ### 5.2 Connectors – Plug-in Architecture ✅ Implemented
 
@@ -172,6 +174,13 @@ source = get_source("postgres", config, connection)
 | `PostgresSource` | SQLAlchemy + psycopg2 | Streaming results, cursor-based incremental, schema introspection |
 | `CSVSource` | stdlib csv | Batched reading, type inference, header detection |
 | `S3Source` | boto3 + fsspec | Object discovery via boto3, reads via fsspec, incremental by modification time |
+
+**Implemented Destination Connectors:**
+
+| Connector | Stack | Features |
+|-----------|-------|----------|
+| `DuckDBDestination` | DuckDB | File-based or in-memory databases, automatic schema creation, append/overwrite/merge modes |
+| `S3Destination` | boto3 + fsspec | S3 object writes, supports various formats |
 
 **Technology Choices:**
 
@@ -243,7 +252,7 @@ transform:
 - Template support in `add_column` values
 - Extensible via `@register_transform` decorator
 
-### 5.4 State Management ✅ Protocol Defined
+### 5.4 State Management ✅ Implemented
 
 **State Model** (`core/state.py`):
 
@@ -259,12 +268,17 @@ class State(BaseModel):
 
 ```python
 class StateBackend(Protocol):
-    def load(self, recipe_name: str) -> State: ...
-    def save(self, recipe_name: str, state: State) -> None: ...
+    def load(self, recipe_name: str) -> dict[str, Any]: ...
+    def save(self, recipe_name: str, state: dict[str, Any]) -> None: ...
 ```
 
-Planned backends:
-- Local JSON ✅ Implemented
+**Implemented Backends:**
+- Local JSON ✅ Implemented (`LocalStateBackend`)
+  - Stores state in JSON files under `.state/{recipe_name}.json`
+  - Uses atomic writes to prevent corruption
+  - Automatically creates state directory if needed
+
+**Planned backends:**
 - S3
 - DynamoDB
 - SQL table backend
@@ -313,16 +327,32 @@ DataLoaderError          # Base exception
 
 All exceptions include structured `context` dict for debugging.
 
-### 5.7 Execution Engine 🚧 Planned
+### 5.7 Execution Engine ✅ Implemented
 
-Core loop:
+Core execution loop implemented in `core/engine.py`:
 
 ```python
-for batch in source.read_batches(state):
-    batch = transformer.apply(batch)
-    destination.write_batch(batch, state)
-    state_backend.save(recipe.name, state)
+def execute(recipe: Recipe, state_backend: StateBackend) -> None:
+    state = State.from_dict(state_backend.load(recipe.name))
+    source = _get_source(recipe.source)
+    transformer = _get_transformer(recipe.transform)
+    destination = _get_destination(recipe.destination)
+    
+    for batch in source.read_batches(state):
+        batch = transformer.apply(batch)
+        destination.write_batch(batch, state)
+        state_backend.save(recipe.name, state.to_dict())
 ```
+
+**Features:**
+- Loads state for recipe before execution
+- Creates source, transformer, and destination from recipe config
+- Processes batches sequentially
+- Applies transforms to each batch
+- Writes batches to destination
+- Saves state after each batch for resumability
+- All connection parameters come from recipe (templates rendered during loading)
+- Comprehensive error handling with context
 
 ## 6. Rust Engine (Optional) 🔮 Future
 
@@ -336,24 +366,44 @@ Rust is introduced for:
 
 ## 7. Developer Experience
 
-### 7.1 Python API
+### 7.1 Python API ✅ Implemented
+
+**Public API** (`api.py`):
 
 ```python
-from dataloader.models import Recipe
-from dataloader.models.loader import RecipeLoader
+from dataloader import from_yaml, run_recipe, run_recipe_from_yaml, LocalStateBackend
 
-# Load recipe with inheritance and templates
-loader = RecipeLoader()
-recipe = loader.load("recipes/customers.yaml", cli_vars={"env": "prod"})
+# Load recipe from YAML (templates rendered automatically)
+recipe = from_yaml("examples/recipes/customers.yaml")
 
-# Get source connector
-from dataloader.connectors import get_source
-source = get_source(recipe.source.type, recipe.source, connection_dict)
+# Execute recipe with state backend
+state_backend = LocalStateBackend(".state")
+run_recipe(recipe, state_backend)
 
-# Read batches
-for batch in source.read_batches(state):
-    print(f"Read {batch.row_count} rows")
+# Or use convenience function
+run_recipe_from_yaml("examples/recipes/customers.yaml", state_dir=".state")
 ```
+
+**Connection Configuration:**
+
+All connection parameters are specified in recipes using Jinja2-style templates:
+
+```yaml
+source:
+  type: postgres
+  host: "{{ env_var('DB_HOST') }}"
+  user: "{{ env_var('DB_USER') }}"
+  password: "{{ env_var('DB_PASSWORD') }}"
+  table: public.customers
+```
+
+Templates are rendered during recipe loading, so no separate connection dictionaries are needed.
+
+**Package Exports** (`dataloader/__init__.py`):
+
+- Public API: `from_yaml`, `run_recipe`, `run_recipe_from_yaml`
+- Core classes: `Recipe`, `State`, `StateBackend`, `LocalStateBackend`, `Batch`, `DictBatch`
+- Exceptions: `DataLoaderError`, `RecipeError`, `ConnectorError`, `TransformError`, `StateError`, `EngineError`
 
 ### 7.2 CLI 🚧 Planned
 
@@ -367,30 +417,34 @@ dataloader list-connectors
 
 ## 8. Roadmap
 
-### v0.1 – Prototype 🔄 In Progress
+### v0.1 – Prototype ✅ Complete
 
 - [x] Recipe model layer (Pydantic)
 - [x] Recipe inheritance (`extends:`)
-- [x] Template rendering (`{{ env.* }}`, `{{ var.* }}`)
+- [x] Template rendering (`{{ env_var('VAR') }}`, `{{ var('VAR') }}`, `{{ recipe.name }}`)
 - [x] Delete semantics for inheritance
 - [x] Source/Destination protocols
 - [x] Connector registry (decorator pattern)
 - [x] PostgresSource (SQLAlchemy)
 - [x] CSVSource
 - [x] S3Source (boto3 + fsspec)
+- [x] DuckDBDestination ✅
+- [x] S3Destination ✅
 - [x] Batch and State models
 - [x] Exception hierarchy
 - [x] Transform pipeline executor
 - [x] Transform registry (decorator pattern)
 - [x] Basic transforms (rename_columns, cast, add_column)
-- [ ] DuckDB destination
-- [ ] Execution engine
-- [ ] Local JSON state backend
+- [x] Execution engine ✅
+- [x] Local JSON state backend (`LocalStateBackend`) ✅
+- [x] Public Python API (`from_yaml`, `run_recipe`, `run_recipe_from_yaml`) ✅
+- [x] Example recipes ✅
+- [x] Documentation (README.md) ✅
+- [x] Integration tests ✅
 
 ### v0.2 – Reliable MVP
 
 - Parallelism
-- Retry logic
 - Better logging/metrics
 - S3/DynamoDB state
 - CLI
@@ -416,13 +470,15 @@ dataloader list-connectors
 
 ```
 dataloader/
+  __init__.py             # Package exports (public API)
+  api.py                  # Public Python API
   core/
     __init__.py
     batch.py              # Batch protocol and DictBatch
-    engine.py             # Execution engine (planned)
+    engine.py             # Execution engine ✅
     exceptions.py         # Exception hierarchy
     state.py              # State model
-    state_backend.py      # StateBackend protocol
+    state_backend.py      # StateBackend protocol + LocalStateBackend ✅
   models/
     __init__.py
     recipe.py             # Recipe model
@@ -446,7 +502,10 @@ dataloader/
     s3/
       __init__.py
       source.py           # S3Source (boto3 + fsspec)
-    duckdb/               # (planned)
+      destination.py      # S3Destination ✅
+    duckdb/
+      __init__.py
+      destination.py      # DuckDBDestination ✅
   transforms/
     __init__.py           # Registry + exports
     registry.py           # Transform registry
@@ -456,14 +515,18 @@ dataloader/
     add_column.py         # add_column transform
 examples/
   recipes/
-    base_recipe.yaml
-    child_recipe.yaml
+    base_recipe.yaml      # Base recipe example
+    customers.yaml        # Postgres → DuckDB example
+    simple_csv.yaml       # CSV → S3 example
+    child_recipe.yaml     # Inheritance example
 tests/
-  unit/
-  integration/
-pyproject.toml
-README.md
-ARCHITECTURE.md
+  unit/                   # Unit tests
+  integration/            # Integration tests
+    test_recipe_loading.py
+    test_end_to_end.py    # End-to-end pipeline tests ✅
+pyproject.toml            # Package configuration ✅
+README.md                 # User documentation ✅
+ARCHITECTURE.md           # This file
 ```
 
 ## 11. Dependencies
@@ -471,11 +534,13 @@ ARCHITECTURE.md
 ```toml
 [project]
 dependencies = [
-    "pydantic>=2.0.0",        # Schema validation
-    "pyyaml>=6.0.0",          # YAML parsing
+    "pydantic>=2.0",          # Schema validation
+    "pyyaml>=6.0",            # YAML parsing
+    "psycopg2-binary>=2.9",   # Postgres driver
+    "boto3>=1.28",            # S3 discovery/metadata
+    "duckdb>=0.9",            # DuckDB database
+    "pandas>=2.0",            # CSV handling and data manipulation
     "sqlalchemy>=2.0.0",      # Database abstraction
-    "psycopg2-binary>=2.9.0", # Postgres driver
-    "boto3>=1.26.0",          # S3 discovery/metadata
     "fsspec>=2023.1.0",       # Unified filesystem interface
     "s3fs>=2023.1.0",         # S3 backend for fsspec
 ]
@@ -546,15 +611,30 @@ Templates are rendered after inheritance resolution:
 
 ```yaml
 source:
-  host: "{{ env.DB_HOST }}"           # os.environ["DB_HOST"]
-  database: "{{ var.database }}"      # CLI-provided variable
-  table: "{{ recipe.name }}_raw"      # Recipe metadata
+  host: "{{ env_var('DB_HOST') }}"           # os.environ["DB_HOST"]
+  database: "{{ var('database') }}"          # CLI-provided variable
+  table: "{{ recipe.name }}_raw"             # Recipe metadata
 ```
 
-Unresolved templates raise `RecipeError` with context.
+**Template Syntax:**
+- `{{ env_var('VAR_NAME') }}` - Environment variable lookup (function call)
+- `{{ var('VAR_NAME') }}` - CLI-provided variable (function call, passed via `from_yaml()`)
+- `{{ recipe.name }}` - Recipe metadata (dot notation)
+
+All connection parameters are specified in recipes using templates. Templates are rendered during recipe loading, so no separate connection dictionaries are needed. Unresolved templates raise `RecipeError` with context.
 
 ## 13. Conclusion
 
 This architecture enables a powerful, extensible, and high-performance data loading system centered on recipes, state, and clean abstractions. The ability to layer recipes (`extends:`) gives the system a unique advantage: reproducible, standardized, maintainable pipelines that work across teams and environments.
 
-**Current Status:** v0.1 prototype in progress with recipe layer, source connectors, transform pipeline, and core infrastructure complete.
+**Current Status:** v0.1 prototype complete ✅. All core components implemented including:
+- Recipe model layer with inheritance and template rendering
+- Source and destination connectors (Postgres, CSV, S3, DuckDB)
+- Transform pipeline with extensible registry
+- Execution engine with state management
+- Public Python API (`from_yaml`, `run_recipe`, `run_recipe_from_yaml`)
+- Local state backend for persistent incremental loads
+- Comprehensive documentation and example recipes
+- Integration tests for end-to-end scenarios
+
+Ready for use and further development toward v0.2 (reliable MVP with parallelism, retries, and CLI).

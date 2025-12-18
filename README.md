@@ -227,16 +227,16 @@ name: simple_csv
 
 source:
   type: csv
-  path: "{{ env.CSV_PATH | default('data/input.csv') }}"
+  path: data/input.csv
 
 transform:
   steps: []
 
 destination:
   type: s3
-  bucket: "{{ env.S3_BUCKET | default('my-bucket') }}"
-  path: "{{ env.S3_PATH | default('output/data.csv') }}"
-  region: "{{ env.AWS_REGION | default('us-east-1') }}"
+  bucket: my-bucket
+  path: output/data.csv
+  region: us-east-1
   write_mode: overwrite
 
 runtime:
