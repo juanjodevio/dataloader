@@ -1,0 +1,31 @@
+name: customers
+
+extends: base_recipe.yaml
+
+source:
+  type: postgres
+  host: localhost
+  database: testdb
+  user: postgres
+  password: postgres
+  table: public.customers
+  incremental:
+    strategy: cursor
+    cursor_column: updated_at
+
+transform:
+  steps:
+    - type: rename_columns
+      mapping:
+        fname: first_name
+        lname: last_name
+    - type: add_column
+      name: _loaded_at
+      value: "{{ recipe.name }}"
+
+destination:
+  type: duckdb
+  database: customers.duckdb
+  table: customers
+  write_mode: append
+

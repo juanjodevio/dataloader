@@ -3,10 +3,15 @@
 import logging
 from typing import Any
 
+from dataloader.connectors import get_destination, get_source
 from dataloader.core.batch import Batch
 from dataloader.core.exceptions import EngineError
 from dataloader.core.state import State
 from dataloader.core.state_backend import StateBackend
+from dataloader.models.destination_config import DestinationConfig
+from dataloader.models.source_config import SourceConfig
+from dataloader.models.transform_config import TransformConfig
+from dataloader.transforms import TransformPipeline
 
 logger = logging.getLogger(__name__)
 
@@ -14,7 +19,6 @@ logger = logging.getLogger(__name__)
 def execute(
     recipe: Any,  # Recipe type will be defined in models phase
     state_backend: StateBackend,
-    connections: dict[str, Any],
 ) -> None:
     """Execute a recipe to load data from source to destination.
 
@@ -26,10 +30,16 @@ def execute(
     5. Write batch to destination
     6. Save state after each batch
 
+    All connection parameters come from the recipe configuration, which supports
+    Jinja2-style templates (e.g., {{ env_var('DB_HOST') }}) that are rendered
+    during recipe loading.
+
     Args:
-        recipe: Recipe object containing source, transform, and destination configs
+        recipe: Recipe object containing source, transform, and destination configs.
+                Source and destination configuration come from recipe.source and
+                recipe.destination respectively. Connection parameters (host, user,
+                password, etc.) are specified in the recipe and can use templates.
         state_backend: Backend for loading and saving state
-        connections: Dictionary of connection configurations keyed by conn_id
 
     Raises:
         EngineError: If execution fails at any step
@@ -42,9 +52,9 @@ def execute(
 
         logger.debug(f"Loaded state for recipe {recipe.name}: {state.to_dict()}")
 
-        source = _get_source(recipe.source, connections)
+        source = _get_source(recipe.source)
         transformer = _get_transformer(recipe.transform)
-        destination = _get_destination(recipe.destination, connections)
+        destination = _get_destination(recipe.destination)
 
         batch_count = 0
         total_rows = 0
@@ -79,12 +89,14 @@ def execute(
         ) from e
 
 
-def _get_source(source_config: Any, connections: dict[str, Any]) -> Any:
+def _get_source(source_config: SourceConfig) -> Any:
     """Get source connector instance from config.
 
+    All connection parameters come from the source_config, which has already
+    had templates rendered during recipe loading.
+
     Args:
-        source_config: Source configuration from recipe
-        connections: Dictionary of connection configurations
+        source_config: Source configuration from recipe (templates already rendered)
 
     Returns:
         Source connector instance
@@ -92,11 +104,18 @@ def _get_source(source_config: Any, connections: dict[str, Any]) -> Any:
     Raises:
         EngineError: If source cannot be created
     """
-    # Placeholder implementation - will be implemented in connectors phase
-    raise NotImplementedError("Source connector resolution not yet implemented")
+    try:
+        # All connection parameters come from the config
+        # Connectors expect an empty connection dict since config has all values
+        return get_source(source_config.type, source_config, {})
+    except Exception as e:
+        raise EngineError(
+            f"Failed to create source connector: {e}",
+            context={"source_type": source_config.type},
+        ) from e
 
 
-def _get_transformer(transform_config: Any) -> Any:
+def _get_transformer(transform_config: TransformConfig) -> TransformPipeline:
     """Get transformer instance from config.
 
     Args:
@@ -108,16 +127,23 @@ def _get_transformer(transform_config: Any) -> Any:
     Raises:
         EngineError: If transformer cannot be created
     """
-    # Placeholder implementation - will be implemented in transforms phase
-    raise NotImplementedError("Transformer resolution not yet implemented")
+    try:
+        return TransformPipeline(transform_config)
+    except Exception as e:
+        raise EngineError(
+            f"Failed to create transform pipeline: {e}",
+            context={"transform_steps": len(transform_config.steps)},
+        ) from e
 
 
-def _get_destination(destination_config: Any, connections: dict[str, Any]) -> Any:
+def _get_destination(destination_config: DestinationConfig) -> Any:
     """Get destination connector instance from config.
 
+    All connection parameters come from the destination_config, which has already
+    had templates rendered during recipe loading.
+
     Args:
-        destination_config: Destination configuration from recipe
-        connections: Dictionary of connection configurations
+        destination_config: Destination configuration from recipe (templates already rendered)
 
     Returns:
         Destination connector instance
@@ -125,6 +151,13 @@ def _get_destination(destination_config: Any, connections: dict[str, Any]) -> An
     Raises:
         EngineError: If destination cannot be created
     """
-    # Placeholder implementation - will be implemented in connectors phase
-    raise NotImplementedError("Destination connector resolution not yet implemented")
+    try:
+        # All connection parameters come from the config
+        # Connectors expect an empty connection dict since config has all values
+        return get_destination(destination_config.type, destination_config, {})
+    except Exception as e:
+        raise EngineError(
+            f"Failed to create destination connector: {e}",
+            context={"destination_type": destination_config.type},
+        ) from e
 
