@@ -40,12 +40,20 @@ class DestinationConfig(BaseModel):
     @model_validator(mode="after")
     def validate_fields(self):
         """Validate connector fields and merge_keys."""
-        if self.type in ("redshift", "snowflake", "duckdb", "postgres"):
+        if self.type in ("redshift", "snowflake", "postgres"):
             required = ["host", "database", "user", "table"]
             missing = [f for f in required if not getattr(self, f)]
             if missing:
                 raise ValueError(
                     f"Destination type '{self.type}' requires fields: {', '.join(missing)}"
+                )
+        elif self.type == "duckdb":
+            # DuckDB uses database as file path, doesn't need host/user
+            required = ["database", "table"]
+            missing = [f for f in required if not getattr(self, f)]
+            if missing:
+                raise ValueError(
+                    f"Destination type 'duckdb' requires fields: {', '.join(missing)}"
                 )
         elif self.type in ("s3",):
             if not self.bucket or not self.path:
