@@ -1,0 +1,30 @@
+extends: base_recipe.yaml
+
+name: child_recipe
+
+source:
+  type: postgres
+  host: "{{ env_var('SOURCE_HOST') }}"
+  database: sourcedb
+  user: sourceuser
+  password: sourcepass
+  table: orders
+
+transform:
+  steps:
+    - type: rename_columns
+      mapping:
+        order_dt: order_date
+
+destination:
+  type: redshift
+  host: redshift.example.com
+  database: dw
+  user: dwuser
+  password: dwpass
+  table: dw.orders
+  write_mode: append
+
+runtime:
+  batch_size: 5000
+

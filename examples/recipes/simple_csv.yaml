@@ -1,0 +1,19 @@
+name: simple_csv
+
+source:
+  type: csv
+  path: data/input.csv
+
+transform:
+  steps: []
+
+destination:
+  type: s3
+  bucket: my-bucket
+  path: output/data.csv
+  region: us-east-1
+  write_mode: overwrite
+
+runtime:
+  batch_size: 5000
+

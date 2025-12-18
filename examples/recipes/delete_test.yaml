@@ -1,0 +1,24 @@
+extends: base_recipe.yaml
+
+name: delete_test
+
+source:
+  type: postgres
+  host: localhost
+  database: testdb
+  user: testuser
+  password: testpass
+  table: test
+
+destination:
+  type: redshift
+  host: redshift.example.com
+  database: dw
+  user: dwuser
+  password: dwpass
+  table: dw.test
+  write_mode: append
+
+delete:
+  - transform.steps
+

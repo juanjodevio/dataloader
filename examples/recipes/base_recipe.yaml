@@ -1,0 +1,11 @@
+name: base_recipe
+
+runtime:
+  batch_size: 10000
+
+transform:
+  steps:
+    - type: add_column
+      name: _loaded_at
+      value: "{{ recipe.name }}"
+

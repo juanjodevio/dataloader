@@ -1,0 +1,29 @@
+name: test_recipe
+
+source:
+  type: postgres
+  host: localhost
+  port: 5432
+  database: testdb
+  user: testuser
+  password: testpass
+  table: public.test_table
+
+transform:
+  steps:
+    - type: rename_columns
+      mapping:
+        old_name: new_name
+
+destination:
+  type: redshift
+  host: redshift.example.com
+  database: dw
+  user: dwuser
+  password: dwpass
+  table: dw.test_table
+  write_mode: append
+
+runtime:
+  batch_size: 5000
+
