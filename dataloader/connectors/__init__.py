@@ -15,10 +15,13 @@ from dataloader.connectors.registry import (
     DestinationFactory,
     SourceFactory,
     clear_registries,
+    get_connector,
     get_destination,
     get_source,
+    list_connector_types,
     list_destination_types,
     list_source_types,
+    register_connector,
     register_destination,
     register_source,
 )
@@ -27,6 +30,12 @@ from dataloader.connectors.registry import (
 from dataloader.connectors.csv.source import CSVSource, create_csv_source
 from dataloader.connectors.postgres.source import PostgresSource, create_postgres_source
 from dataloader.connectors.s3.source import S3Source, create_s3_source
+
+# Unified connectors (register themselves via @register_connector decorator on import)
+from dataloader.connectors.postgres.connector import (
+    PostgresConnector,
+    create_postgres_connector,
+)
 
 # Destination modules register themselves via @register_destination decorator on import
 from dataloader.connectors.duckdb.destination import (
@@ -45,7 +54,14 @@ def reregister_builtins() -> None:
     This is intended for tests that call clear_registries() but need
     the built-in connectors available afterwards.
     """
-    # Sources
+    # Unified connectors (preferred)
+    current_connectors = list_connector_types()
+    if "postgres" not in current_connectors:
+        register_connector("postgres", create_postgres_connector)
+    if "s3" not in current_connectors:
+        register_connector("s3", create_s3_connector)
+
+    # Legacy sources (for backward compatibility)
     current_sources = list_source_types()
     if "postgres" not in current_sources:
         register_source("postgres", create_postgres_source)
@@ -54,7 +70,7 @@ def reregister_builtins() -> None:
     if "s3" not in current_sources:
         register_source("s3", create_s3_source)
 
-    # Destinations
+    # Legacy destinations (for backward compatibility)
     current_destinations = list_destination_types()
     if "duckdb" not in current_destinations:
         register_destination("duckdb", create_duckdb_destination)
@@ -70,13 +86,16 @@ __all__ = [
     "SourceFactory",
     "DestinationFactory",
     # Registration functions
+    "register_connector",
     "register_source",
     "register_destination",
     "reregister_builtins",
     # Retrieval functions
+    "get_connector",
     "get_source",
     "get_destination",
     # Utility functions
+    "list_connector_types",
     "list_source_types",
     "list_destination_types",
     "clear_registries",
@@ -88,6 +107,7 @@ __all__ = [
     "DuckDBDestination",
     "S3Destination",
     # Unified connector implementations
+    "PostgresConnector",
     "S3Connector",
     # Source factory functions
     "create_postgres_source",
@@ -97,6 +117,7 @@ __all__ = [
     "create_duckdb_destination",
     "create_s3_destination",
     # Unified connector factory functions
+    "create_postgres_connector",
     "create_s3_connector",
 ]
 
