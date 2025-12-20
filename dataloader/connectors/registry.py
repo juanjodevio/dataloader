@@ -8,13 +8,23 @@ Connectors can implement read and/or write operations.
 from typing import Callable, Union, overload
 
 from dataloader.connectors.base import Connector, Destination, Source
+from dataloader.connectors.csv.config import CSVConnectorConfig
+from dataloader.connectors.duckdb.config import DuckDBConnectorConfig
+from dataloader.connectors.postgres.config import PostgresConnectorConfig
+from dataloader.connectors.s3.config import S3ConnectorConfig
 from dataloader.core.exceptions import ConnectorError
+from dataloader.models.connector_config import ConnectorConfig, ConnectorConfigType
 from dataloader.models.destination_config import DestinationConfig
 from dataloader.models.source_config import SourceConfig
 
 # Type aliases for factory signatures
-ConnectorConfig = Union[SourceConfig, DestinationConfig]
-ConnectorFactory = Callable[[ConnectorConfig, dict], Connector]
+# ConnectorConfigUnion accepts the new specific configs or legacy configs for backward compatibility
+ConnectorConfigUnion = Union[
+    ConnectorConfigType,
+    SourceConfig,
+    DestinationConfig,
+]
+ConnectorFactory = Callable[[ConnectorConfigUnion, dict], Connector]
 
 # Legacy type aliases for backward compatibility
 SourceFactory = Callable[[SourceConfig, dict], Source]
@@ -186,14 +196,16 @@ def register_destination(
 
 def get_connector(
     connector_type: str,
-    config: ConnectorConfig,
+    config: ConnectorConfigUnion,
     connection: dict,
 ) -> Connector:
     """Create a connector instance using the registered factory.
 
     Args:
         connector_type: The connector type to instantiate.
-        config: Connector configuration from the recipe (SourceConfig or DestinationConfig).
+        config: Connector configuration from the recipe. Can be:
+            - Connector-specific config (PostgresConnectorConfig, S3ConnectorConfig, etc.)
+            - Legacy SourceConfig or DestinationConfig (for backward compatibility)
         connection: Connection parameters (host, port, credentials, etc.).
 
     Returns:
