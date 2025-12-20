@@ -10,8 +10,12 @@ DataLoader enables you to define data pipelines using simple YAML recipes, handl
 - **Incremental Loads**: Automatic cursor-based incremental loading with state persistence
 - **Transform Pipeline**: Built-in transforms (rename, cast, add columns) with extensible architecture
 - **Multiple Connectors**: Support for Postgres, DuckDB, S3, CSV, and more
-- **State Management**: Persistent state for resumable and incremental loads
+- **State Management**: Persistent state for resumable and incremental loads (Local, S3, DynamoDB)
 - **Template System**: Environment variables and recipe metadata in configurations
+- **Parallel Execution**: Async batch processing with configurable parallelism
+- **Structured Logging**: JSON or normal format logs with context
+- **Metrics Collection**: Track batches, rows, errors, and performance
+- **CLI Interface**: Full command-line interface for all operations
 
 ## Installation
 
@@ -288,6 +292,115 @@ table: "{{ var.table_name }}"
 value: "{{ recipe.name }}"
 ```
 
+## CLI Interface
+
+DataLoader provides a full command-line interface for all operations:
+
+### Core Commands
+
+- **`dataloader run`**: Execute a recipe
+  ```bash
+  dataloader run recipe.yaml
+  dataloader run recipe.yaml --state-backend s3://bucket/state
+  dataloader run recipe.yaml --vars table=customers --log-level DEBUG
+  ```
+
+- **`dataloader validate`**: Validate a recipe
+  ```bash
+  dataloader validate recipe.yaml
+  ```
+
+- **`dataloader show-state`**: Display recipe state
+  ```bash
+  dataloader show-state my_recipe
+  dataloader show-state my_recipe --json
+  ```
+
+- **`dataloader init`**: Initialize a new recipe project
+  ```bash
+  dataloader init
+  dataloader init --recipe-name customers
+  ```
+
+- **`dataloader list-connectors`**: List available connectors
+  ```bash
+  dataloader list-connectors
+  ```
+
+- **`dataloader test-connection`**: Test source and destination connections
+  ```bash
+  dataloader test-connection recipe.yaml
+  ```
+
+- **`dataloader dry-run`**: Simulate execution without writing data
+  ```bash
+  dataloader dry-run recipe.yaml
+  ```
+
+- **`dataloader resume`**: Resume a failed execution
+  ```bash
+  dataloader resume recipe.yaml
+  ```
+
+- **`dataloader cancel`**: Mark a recipe as canceled
+  ```bash
+  dataloader cancel my_recipe
+  ```
+
+### CLI Options
+
+- `--state-dir`: Directory for local state files (default: `.state`)
+- `--state-backend`: State backend config (e.g., `s3://bucket/prefix`, `dynamodb:table`)
+- `--vars`: CLI variables in `key=value` format (can be used multiple times)
+- `--log-level`: Log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+- `--json-logs`: Use JSON format for logs
+
+## Parallelism
+
+Recipes can be configured for parallel batch processing using the `parallelism` field in `runtime`:
+
+```yaml
+runtime:
+  batch_size: 10000
+  parallelism: 4  # Process 4 batches concurrently
+```
+
+- **parallelism: 1** (default): Sequential processing, one batch at a time
+- **parallelism > 1**: Async parallel processing using asyncio
+
+Parallel execution uses async/await with semaphore-based concurrency control to ensure safe state updates.
+
+## Logging & Metrics
+
+### Structured Logging
+
+DataLoader supports both JSON and normal log formats:
+
+```python
+from dataloader.core.logging import configure_logging
+
+# Normal format (default)
+configure_logging(level="INFO")
+
+# JSON format
+configure_logging(level="INFO", json_format=True)
+```
+
+Logs include context such as recipe name, batch ID, and execution details.
+
+### Metrics Collection
+
+Metrics are automatically collected during execution:
+
+- Batches processed
+- Rows processed
+- Errors
+- Execution time
+- Rows per second
+- Average batch time
+
+Metrics are saved to state metadata and can be accessed via the state backend.
+
 ## State Management
 
 State is persisted between runs to enable incremental loads. State includes:
@@ -295,9 +408,47 @@ State is persisted between runs to enable incremental loads. State includes:
 - **cursor_values**: Last processed cursor values for incremental loads
 - **watermarks**: High watermarks for time-based incremental loads
 - **checkpoints**: Recovery checkpoints
-- **metadata**: Additional state metadata
+- **metadata**: Additional state metadata (including metrics)
 
-State is stored using a `StateBackend`. The default `LocalStateBackend` stores state in JSON files under `.state/`.
+### State Backends
+
+DataLoader supports multiple state backends:
+
+- **LocalStateBackend** (default): Stores state in JSON files under `.state/`
+  ```python
+  from dataloader.core.state_backend import LocalStateBackend
+  backend = LocalStateBackend(".state")
+  ```
+
+- **S3StateBackend**: Stores state in S3
+  ```python
+  from dataloader.core.state_backend import S3StateBackend
+  backend = S3StateBackend(bucket="my-bucket", prefix="state/")
+  ```
+
+- **DynamoDBStateBackend**: Stores state in DynamoDB
+  ```python
+  from dataloader.core.state_backend import DynamoDBStateBackend
+  backend = DynamoDBStateBackend(table_name="dataloader-state")
+  ```
+
+### State Backend Factory
+
+Use the factory function to create backends from config strings:
+
+```python
+from dataloader.core.state_backend import create_state_backend
+
+# Local
+backend = create_state_backend("local:.state")
+
+# S3
+backend = create_state_backend("s3://my-bucket/state/")
+
+# DynamoDB
+backend = create_state_backend("dynamodb:my-table")
+backend = create_state_backend("dynamodb:my-table:us-east-1")  # with region
+```
 
 ## Development
 

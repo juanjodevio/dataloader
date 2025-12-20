@@ -4,7 +4,11 @@ This module provides the main entry points for loading and executing recipes.
 """
 
 from dataloader.core.engine import execute
-from dataloader.core.state_backend import LocalStateBackend, StateBackend
+from dataloader.core.state_backend import (
+    LocalStateBackend,
+    StateBackend,
+    create_state_backend,
+)
 from dataloader.models.loader import load_recipe
 from dataloader.models.recipe import Recipe
 
@@ -73,19 +77,24 @@ def run_recipe(
 
 def run_recipe_from_yaml(
     recipe_path: str,
+    state_backend_config: str | None = None,
     state_dir: str = ".state",
 ) -> None:
     """Load and execute recipe from YAML file.
 
     Convenience function that combines `from_yaml()` and `run_recipe()`.
-    Creates a LocalStateBackend with the specified state directory.
+    Creates a StateBackend from config string or uses LocalStateBackend with state_dir.
 
     Connection parameters are specified in the recipe YAML file using Jinja2-style
     templates (e.g., {{ env_var('DB_HOST') }}) and are rendered during loading.
 
     Args:
         recipe_path: Path to recipe YAML file
-        state_dir: Directory to store state files (default: ".state")
+        state_backend_config: Optional state backend config string.
+                            Format: "local[:path]", "s3://bucket/prefix", "dynamodb:table[:region]"
+                            If not provided, uses LocalStateBackend with state_dir.
+        state_dir: Directory to store state files (default: ".state").
+                  Only used if state_backend_config is not provided.
 
     Raises:
         RecipeError: If recipe loading fails
@@ -93,12 +102,19 @@ def run_recipe_from_yaml(
         ConnectorError: If connector creation fails
         TransformError: If transform execution fails
         StateError: If state operations fail
+        ValueError: If state_backend_config format is invalid
 
     Example:
         >>> from dataloader import run_recipe_from_yaml
         >>> run_recipe_from_yaml("examples/recipes/customers.yaml", state_dir=".state")
+        >>> run_recipe_from_yaml("examples/recipes/customers.yaml", state_backend_config="s3://my-bucket/state")
     """
     recipe = from_yaml(recipe_path)
-    state_backend = LocalStateBackend(state_dir)
+    
+    if state_backend_config:
+        state_backend = create_state_backend(state_backend_config)
+    else:
+        state_backend = LocalStateBackend(state_dir)
+    
     run_recipe(recipe, state_backend)
 

@@ -9,8 +9,10 @@ class RuntimeConfig(BaseModel):
     batch_size: int = Field(
         default=10000, description="Number of rows per batch", gt=0
     )
-    max_retries: int = Field(
-        default=0, description="Maximum retry attempts (stub for v0.2)", ge=0
+    parallelism: int = Field(
+        default=1,
+        description="Number of parallel workers for batch processing (1 = sequential)",
+        ge=1,
     )
 
     @field_validator("batch_size")
@@ -19,5 +21,13 @@ class RuntimeConfig(BaseModel):
         """Validate batch_size is positive."""
         if v <= 0:
             raise ValueError("batch_size must be greater than 0")
+        return v
+
+    @field_validator("parallelism")
+    @classmethod
+    def validate_parallelism(cls, v):
+        """Validate parallelism is at least 1."""
+        if v < 1:
+            raise ValueError("parallelism must be at least 1")
         return v
 

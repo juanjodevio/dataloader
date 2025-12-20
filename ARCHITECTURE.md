@@ -442,18 +442,330 @@ dataloader list-connectors
 - [x] Documentation (README.md) ✅
 - [x] Integration tests ✅
 
-### v0.2 – Reliable MVP
+### v0.2 – Reliable MVP ✅ Complete
 
-- Parallelism
-- Better logging/metrics
-- S3/DynamoDB state
-- CLI
+- [x] Parallelism (asyncio-based)
+- [x] Structured logging (JSON/normal format)
+- [x] Metrics collection
+- [x] S3/DynamoDB state backends
+- [x] Full CLI interface
+- [x] State backend factory
 
-### v0.3 – Rust Engine
+### v0.3 – Schema Management & Type System
 
-- Arrow Batches
-- Rust transform DSL
-- Rust I/O readers/writers
+**Goal**: Automatic schema inference, evolution, and rich type handling
+
+- [ ] **Schema Inference & Evolution**
+  - Automatic schema detection from source data
+  - Schema versioning (track schema changes over time)
+  - Schema migration support
+  - Schema registry (store schemas separately from state)
+  - Add `SchemaManager` class
+
+- [ ] **Data Type System**
+  - Rich type system (string, int, float, date, datetime, json, array, struct)
+  - Automatic type inference from data
+  - Type coercion and validation
+  - Support for complex/nested types
+  - Add `TypeInferrer` class
+
+- [ ] **Schema Configuration**
+  - Allow schema override in recipes
+  - Define expected schemas in YAML
+  - Validate incoming data against schema
+  - Schema enforcement modes (strict, lenient, infer)
+
+**Example Recipe Enhancement:**
+```yaml
+name: customers_pipeline
+
+source:
+  type: postgres
+  table: customers
+
+schema:
+  mode: strict  # or: infer, lenient
+  columns:
+    - name: id
+      type: integer
+      nullable: false
+      primary_key: true
+    - name: email
+      type: string
+      nullable: false
+      unique: true
+    - name: created_at
+      type: datetime
+      nullable: false
+  evolution:
+    allow_new_columns: true
+    allow_column_deletion: false
+    allow_type_changes: false
+
+destination:
+  type: duckdb
+  database: output.duckdb
+  table: customers
+```
+
+### v0.4 – Data Normalization
+
+**Goal**: Automatically flatten nested data structures for easier analysis
+
+- [ ] **Nested Data Flattening**
+  - Automatically flatten nested JSON/dicts
+  - Create child tables for arrays
+  - Preserve relationships (foreign keys)
+  - Add `NormalizationEngine` class
+
+- [ ] **Normalization Configuration**
+  - Control flattening behavior
+  - Name child tables
+  - Set normalization depth
+  - Configure array handling strategies
+
+- [ ] **Data Structure Analysis**
+  - Detect nested structures
+  - Suggest normalization strategies
+  - Preview normalized schema
+
+**Example Recipe Enhancement:**
+```yaml
+normalization:
+  enabled: true
+  max_depth: 3
+  strategy: auto  # or: flatten, explode, json_column
+  array_handling:
+    - field: orders
+      action: create_table
+      table_name: customer_orders
+      relationship: one_to_many
+```
+
+### v0.5 – Data Validation & Quality
+
+**Goal**: Define and enforce data quality rules
+
+- [ ] **Data Contracts**
+  - Define data quality rules in recipes
+  - Validate data before loading
+  - Quarantine bad rows
+  - Add `DataValidator` class
+
+- [ ] **Validation Rules**
+  - Required fields
+  - Range checks (min/max)
+  - Regex patterns
+  - Custom validation functions
+  - Cross-field validation
+  - Enum/choice validation
+
+- [ ] **Error Handling**
+  - Bad data quarantine table
+  - Validation error reports
+  - Configurable failure modes (fail-fast, skip-row, quarantine)
+  - Error aggregation and reporting
+
+**Example Recipe Enhancement:**
+```yaml
+validation:
+  rules:
+    - column: email
+      type: email
+      required: true
+    - column: age
+      type: integer
+      min: 0
+      max: 150
+    - column: status
+      type: enum
+      values: [active, inactive, suspended]
+  
+  on_error: quarantine  # or: fail, skip, warn
+  quarantine_table: _quarantine_customers
+```
+
+### v0.6 – Multiple Resources & Dependencies
+
+**Goal**: Support multiple sources per recipe with dependency management
+
+- [ ] **Multi-Resource Pipelines**
+  - Multiple sources per recipe
+  - Resource dependencies
+  - Conditional execution
+  - Add `ResourceGraph` class
+
+- [ ] **Resource Configuration**
+  - Named resources
+  - Resource-level state
+  - Resource-level transforms
+  - Resource-level destinations
+
+- [ ] **Dependency Management**
+  - Define resource dependencies
+  - Execute resources in dependency order
+  - Handle dependency failures
+  - Parallel execution of independent resources
+
+**Example Recipe Enhancement:**
+```yaml
+name: full_customer_pipeline
+
+resources:
+  - name: customers
+    source:
+      type: postgres
+      table: customers
+    destination:
+      table: dim_customers
+  
+  - name: orders
+    depends_on: [customers]
+    source:
+      type: postgres
+      table: orders
+    destination:
+      table: fact_orders
+  
+  - name: order_items
+    depends_on: [orders]
+    source:
+      type: postgres
+      table: order_items
+    destination:
+      table: fact_order_items
+```
+
+### v0.7 – Advanced Transformations
+
+**Goal**: Support SQL-based and dbt transformations
+
+- [ ] **SQL Transformations**
+  - Inline SQL transforms
+  - Staging area support
+  - SQL templating with Jinja2
+  - Cross-database SQL support
+
+- [ ] **dbt Integration**
+  - Run dbt models after loading
+  - Pass variables to dbt
+  - Handle dbt dependencies
+  - dbt project configuration
+
+- [ ] **Custom Python Transforms**
+  - User-defined transform functions
+  - Transform decorators (`@transform`)
+  - Transform chaining
+  - Transform testing framework
+
+**Example Recipe Enhancement:**
+```yaml
+transform:
+  steps:
+    - type: sql
+      query: |
+        SELECT 
+          *,
+          EXTRACT(YEAR FROM created_at) as year,
+          CASE 
+            WHEN amount > 1000 THEN 'high'
+            ELSE 'normal'
+          END as tier
+        FROM {input}
+    
+    - type: python
+      function: custom_transforms.enrich_customer
+      params:
+        api_key: "{{ env_var('API_KEY') }}"
+    
+    - type: dbt
+      project_dir: ./dbt_project
+      models: [customer_metrics]
+```
+
+### v0.8 – Built-in Verified Sources
+
+**Goal**: Provide pre-built, tested connectors for common data sources
+
+- [ ] **REST API Source**
+  - Generic REST API connector
+  - Pagination support (offset, cursor, page)
+  - Rate limiting
+  - Authentication (API key, OAuth, JWT)
+  - Incremental loading
+
+- [ ] **Common SaaS Sources**
+  - Stripe
+  - Shopify
+  - Salesforce
+  - Google Analytics
+  - HubSpot
+  - GitHub
+  - Slack
+
+- [ ] **Source Registry**
+  - Community-contributed sources
+  - Source testing framework
+  - Source documentation generator
+  - Source versioning
+
+**Example Recipe Enhancement:**
+```yaml
+source:
+  type: stripe
+  api_key: "{{ env_var('STRIPE_API_KEY') }}"
+  resource: customers
+  incremental:
+    strategy: cursor
+    cursor_column: created
+```
+
+### v0.9 – Production Features
+
+**Goal**: Enterprise-ready observability, scheduling, and security
+
+- [ ] **Alerting & Notifications**
+  - Email/Slack alerts on failures
+  - Schema change notifications
+  - Data quality alerts
+  - Custom alert rules
+
+- [ ] **Pipeline Scheduling**
+  - Cron-like scheduling
+  - DAG scheduling (Airflow integration)
+  - Event-driven triggers
+  - Schedule management
+
+- [ ] **Observability**
+  - Prometheus metrics export
+  - OpenTelemetry traces
+  - Grafana dashboards
+  - Performance profiling
+
+- [ ] **Security**
+  - Secret management integration (Vault, AWS Secrets Manager)
+  - Encryption at rest
+  - Audit logging
+  - Role-based access control
+
+### v0.10 – Rust Engine (Performance)
+
+**Goal**: Optional Rust acceleration for performance-critical operations
+
+- [ ] **Arrow Batches**
+  - Arrow-formatted batch representation
+  - Zero-copy data transfer
+  - Memory-efficient processing
+
+- [ ] **Rust Transform DSL**
+  - High-performance transform engine
+  - Rust-based transform functions
+  - Parallel transform execution
+
+- [ ] **Rust I/O Readers/Writers**
+  - CSV/Parquet read/write at high throughput
+  - IO parallel orchestration without Python GIL
+  - Bindings via PyO3
 
 ## 9. Differentiators vs Existing Tools
 
@@ -627,14 +939,22 @@ All connection parameters are specified in recipes using templates. Templates ar
 
 This architecture enables a powerful, extensible, and high-performance data loading system centered on recipes, state, and clean abstractions. The ability to layer recipes (`extends:`) gives the system a unique advantage: reproducible, standardized, maintainable pipelines that work across teams and environments.
 
-**Current Status:** v0.1 prototype complete ✅. All core components implemented including:
+**Current Status:** 
+- **v0.1 Prototype** ✅ Complete - All core components implemented
+- **v0.2 Reliable MVP** ✅ Complete - Parallelism, logging, metrics, state backends, CLI
+
+**Implemented Features:**
 - Recipe model layer with inheritance and template rendering
 - Source and destination connectors (Postgres, CSV, S3, DuckDB)
 - Transform pipeline with extensible registry
 - Execution engine with state management
 - Public Python API (`from_yaml`, `run_recipe`, `run_recipe_from_yaml`)
-- Local state backend for persistent incremental loads
+- State backends (Local, S3, DynamoDB)
+- Async parallelism with asyncio
+- Structured logging (JSON/normal format)
+- Metrics collection
+- Full CLI interface
 - Comprehensive documentation and example recipes
 - Integration tests for end-to-end scenarios
 
-Ready for use and further development toward v0.2 (reliable MVP with parallelism, retries, and CLI).
+**Next Steps:** v0.3 (Schema Management & Type System) - See roadmap above for detailed feature plans through v0.10.

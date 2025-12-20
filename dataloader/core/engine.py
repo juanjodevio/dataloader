@@ -1,11 +1,15 @@
 """Core execution engine for recipe-based data loading."""
 
+import asyncio
 import logging
+import time
 from typing import Any
 
 from dataloader.connectors import get_destination, get_source
 from dataloader.core.batch import Batch
 from dataloader.core.exceptions import EngineError
+from dataloader.core.metrics import MetricsCollector
+from dataloader.core.parallel import AsyncParallelExecutor, run_async
 from dataloader.core.state import State
 from dataloader.core.state_backend import StateBackend
 from dataloader.models.destination_config import DestinationConfig
@@ -44,48 +48,195 @@ def execute(
     Raises:
         EngineError: If execution fails at any step
     """
-    logger.info(f"Starting execution for recipe: {recipe.name}")
+    # Check if parallelism is enabled
+    parallelism = recipe.runtime.parallelism if hasattr(recipe.runtime, "parallelism") else 1
+    
+    if parallelism > 1:
+        # Use async execution for parallelism
+        run_async(_execute_async(recipe, state_backend))
+    else:
+        # Use sequential execution
+        _execute_sequential(recipe, state_backend)
+
+
+def _execute_sequential(
+    recipe: Any,
+    state_backend: StateBackend,
+) -> None:
+    """Execute recipe sequentially (one batch at a time)."""
+    metrics = MetricsCollector(recipe.name)
+    
+    logger.info("Starting execution", extra={"recipe_name": recipe.name})
 
     try:
         state_dict = state_backend.load(recipe.name)
         state = State.from_dict(state_dict)
 
-        logger.debug(f"Loaded state for recipe {recipe.name}: {state.to_dict()}")
+        logger.debug(f"Loaded state: {state.to_dict()}", extra={"recipe_name": recipe.name})
 
         source = _get_source(recipe.source)
         transformer = _get_transformer(recipe.transform)
         destination = _get_destination(recipe.destination)
 
-        batch_count = 0
-        total_rows = 0
-
         for batch in source.read_batches(state):
-            batch_count += 1
-            total_rows += batch.row_count
-
+            batch_start = time.time()
+            
             logger.info(
-                f"Processing batch {batch_count} with {batch.row_count} rows "
-                f"for recipe {recipe.name}"
+                f"Processing batch with {batch.row_count} rows",
+                extra={
+                    "recipe_name": recipe.name,
+                    "batch_id": metrics.batches_processed + 1,
+                },
             )
 
-            batch = transformer.apply(batch)
-            destination.write_batch(batch, state)
+            try:
+                batch = transformer.apply(batch)
+                destination.write_batch(batch, state)
+                
+                batch_time = time.time() - batch_start
+                metrics.record_batch(batch.row_count, batch_time)
+                
+                state_backend.save(recipe.name, state.to_dict())
+                
+                logger.debug(
+                    "Saved state after batch",
+                    extra={
+                        "recipe_name": recipe.name,
+                        "batch_id": metrics.batches_processed,
+                    },
+                )
+            except Exception as e:
+                metrics.record_error(e, {"batch_id": metrics.batches_processed + 1})
+                raise
 
-            state_backend.save(recipe.name, state.to_dict())
-
-            logger.debug(f"Saved state after batch {batch_count}")
-
+        metrics.finish()
         logger.info(
-            f"Completed execution for recipe {recipe.name}: "
-            f"{batch_count} batches, {total_rows} total rows"
+            f"Completed execution: {metrics.get_summary()}",
+            extra={"recipe_name": recipe.name},
+        )
+        
+        # Save metrics to state metadata
+        state_dict = state_backend.load(recipe.name)
+        state = State.from_dict(state_dict)
+        state = state.update(metadata={**state.metadata, "last_metrics": metrics.to_dict()})
+        state_backend.save(recipe.name, state.to_dict())
+
+    except Exception as e:
+        metrics.record_error(e)
+        metrics.finish()
+        error_msg = f"Execution failed: {e}"
+        logger.error(error_msg, extra={"recipe_name": recipe.name}, exc_info=True)
+        raise EngineError(
+            error_msg,
+            context={"recipe_name": recipe.name, "metrics": metrics.to_dict()},
+        ) from e
+
+
+async def _execute_async(
+    recipe: Any,
+    state_backend: StateBackend,
+) -> None:
+    """Execute recipe with async parallelism."""
+    metrics = MetricsCollector(recipe.name)
+    parallelism = recipe.runtime.parallelism
+    
+    logger.info(
+        f"Starting execution with parallelism={parallelism}",
+        extra={"recipe_name": recipe.name},
+    )
+
+    try:
+        # Load state (async if available)
+        if hasattr(state_backend, "load_async"):
+            state_dict = await state_backend.load_async(recipe.name)
+        else:
+            # Run sync load in thread
+            loop = asyncio.get_event_loop()
+            state_dict = await loop.run_in_executor(None, state_backend.load, recipe.name)
+        
+        state = State.from_dict(state_dict)
+
+        logger.debug(
+            f"Loaded state: {state.to_dict()}",
+            extra={"recipe_name": recipe.name},
+        )
+
+        source = _get_source(recipe.source)
+        transformer = _get_transformer(recipe.transform)
+        destination = _get_destination(recipe.destination)
+
+        # Collect all batches first (needed for parallel processing)
+        batches = list(source.read_batches(state))
+        
+        if not batches:
+            logger.info("No batches to process", extra={"recipe_name": recipe.name})
+            return
+
+        # Process batches in parallel with semaphore control
+        semaphore = asyncio.Semaphore(parallelism)
+        
+        async def process_batch_with_id(batch: Batch, batch_id: int) -> None:
+            """Process a single batch (async wrapper)."""
+            async with semaphore:
+                batch_start = time.time()
+                
+                logger.info(
+                    f"Processing batch with {batch.row_count} rows",
+                    extra={
+                        "recipe_name": recipe.name,
+                        "batch_id": batch_id,
+                    },
+                )
+                
+                try:
+                    # Transform (sync, run in executor)
+                    loop = asyncio.get_event_loop()
+                    transformed_batch = await loop.run_in_executor(None, transformer.apply, batch)
+                    
+                    # Write (sync, run in executor)
+                    await loop.run_in_executor(None, destination.write_batch, transformed_batch, state)
+                    
+                    batch_time = time.time() - batch_start
+                    metrics.record_batch(batch.row_count, batch_time)
+                    
+                except Exception as e:
+                    metrics.record_error(e, {"batch_id": batch_id})
+                    raise
+        
+        # Create tasks for all batches
+        tasks = [
+            process_batch_with_id(batch, i + 1)
+            for i, batch in enumerate(batches)
+        ]
+        
+        # Process all batches with concurrency control
+        await asyncio.gather(*tasks)
+        
+        # Save state after all batches complete
+        # Update state with metrics
+        updated_state = state.update(metadata={**state.metadata, "last_metrics": metrics.to_dict()})
+        state_dict_to_save = updated_state.to_dict()
+        
+        if hasattr(state_backend, "save_async"):
+            await state_backend.save_async(recipe.name, state_dict_to_save)
+        else:
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(None, state_backend.save, recipe.name, state_dict_to_save)
+        
+        metrics.finish()
+        logger.info(
+            f"Completed execution: {metrics.get_summary()}",
+            extra={"recipe_name": recipe.name},
         )
 
     except Exception as e:
-        error_msg = f"Execution failed for recipe {recipe.name}: {e}"
-        logger.error(error_msg, exc_info=True)
+        metrics.record_error(e)
+        metrics.finish()
+        error_msg = f"Execution failed: {e}"
+        logger.error(error_msg, extra={"recipe_name": recipe.name}, exc_info=True)
         raise EngineError(
             error_msg,
-            context={"recipe_name": recipe.name},
+            context={"recipe_name": recipe.name, "metrics": metrics.to_dict()},
         ) from e
 
 
