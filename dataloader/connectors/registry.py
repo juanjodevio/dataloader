@@ -1,23 +1,79 @@
-"""Connector registry for managing source and destination factories.
+"""Connector registry for managing connector factories.
 
 This module provides a registry pattern for connector implementations,
-allowing dynamic registration and retrieval of source/destination factories.
+allowing dynamic registration and retrieval of connector factories.
+Connectors can implement read and/or write operations.
 """
 
-from typing import Callable, overload
+from typing import Callable, Union, overload
 
-from dataloader.connectors.base import Destination, Source
+from dataloader.connectors.base import Connector, Destination, Source
 from dataloader.core.exceptions import ConnectorError
 from dataloader.models.destination_config import DestinationConfig
 from dataloader.models.source_config import SourceConfig
 
 # Type aliases for factory signatures
+ConnectorConfig = Union[SourceConfig, DestinationConfig]
+ConnectorFactory = Callable[[ConnectorConfig, dict], Connector]
+
+# Legacy type aliases for backward compatibility
 SourceFactory = Callable[[SourceConfig, dict], Source]
 DestinationFactory = Callable[[DestinationConfig, dict], Destination]
 
-# Global registries
+# Global registry
+_connector_registry: dict[str, ConnectorFactory] = {}
+
+# Legacy registries (deprecated, kept for backward compatibility)
 _source_registry: dict[str, SourceFactory] = {}
 _destination_registry: dict[str, DestinationFactory] = {}
+
+
+@overload
+def register_connector(connector_type: str) -> Callable[[ConnectorFactory], ConnectorFactory]: ...
+
+
+@overload
+def register_connector(connector_type: str, factory: ConnectorFactory) -> None: ...
+
+
+def register_connector(
+    connector_type: str,
+    factory: ConnectorFactory | None = None,
+) -> Callable[[ConnectorFactory], ConnectorFactory] | None:
+    """Register a connector factory.
+
+    Can be used as a decorator or called directly:
+
+        # As decorator
+        @register_connector("postgres")
+        def create_postgres_connector(config, connection):
+            return PostgresConnector(config, connection)
+
+        # Direct call
+        register_connector("postgres", create_postgres_connector)
+
+    Args:
+        connector_type: Unique identifier for the connector (e.g., 'postgres', 's3', 'csv').
+        factory: Factory function (optional if used as decorator).
+
+    Raises:
+        ConnectorError: If a connector with the same type is already registered.
+    """
+
+    def _register(f: ConnectorFactory) -> ConnectorFactory:
+        if connector_type in _connector_registry:
+            raise ConnectorError(
+                f"Connector '{connector_type}' is already registered",
+                context={"connector_type": connector_type},
+            )
+        _connector_registry[connector_type] = f
+        return f
+
+    if factory is not None:
+        _register(factory)
+        return None
+
+    return _register
 
 
 @overload
@@ -33,6 +89,9 @@ def register_source(
     factory: SourceFactory | None = None,
 ) -> Callable[[SourceFactory], SourceFactory] | None:
     """Register a source connector factory.
+
+    .. deprecated::
+        Use :func:`register_connector` instead. This function is kept for backward compatibility.
 
     Can be used as a decorator or called directly:
 
@@ -59,6 +118,9 @@ def register_source(
                 context={"connector_type": connector_type},
             )
         _source_registry[connector_type] = f
+        # Also register in unified registry for backward compatibility
+        if connector_type not in _connector_registry:
+            _connector_registry[connector_type] = f  # type: ignore
         return f
 
     if factory is not None:
@@ -81,6 +143,9 @@ def register_destination(
     factory: DestinationFactory | None = None,
 ) -> Callable[[DestinationFactory], DestinationFactory] | None:
     """Register a destination connector factory.
+
+    .. deprecated::
+        Use :func:`register_connector` instead. This function is kept for backward compatibility.
 
     Can be used as a decorator or called directly:
 
@@ -107,6 +172,9 @@ def register_destination(
                 context={"connector_type": connector_type},
             )
         _destination_registry[connector_type] = f
+        # Also register in unified registry for backward compatibility
+        if connector_type not in _connector_registry:
+            _connector_registry[connector_type] = f  # type: ignore
         return f
 
     if factory is not None:
@@ -116,12 +184,43 @@ def register_destination(
     return _register
 
 
+def get_connector(
+    connector_type: str,
+    config: ConnectorConfig,
+    connection: dict,
+) -> Connector:
+    """Create a connector instance using the registered factory.
+
+    Args:
+        connector_type: The connector type to instantiate.
+        config: Connector configuration from the recipe (SourceConfig or DestinationConfig).
+        connection: Connection parameters (host, port, credentials, etc.).
+
+    Returns:
+        A Connector instance configured for reading and/or writing.
+
+    Raises:
+        ConnectorError: If the connector type is not registered.
+    """
+    factory = _connector_registry.get(connector_type)
+    if factory is None:
+        available = ", ".join(sorted(_connector_registry.keys())) or "(none)"
+        raise ConnectorError(
+            f"Unknown connector type: '{connector_type}'",
+            context={"connector_type": connector_type, "available_types": available},
+        )
+    return factory(config, connection)
+
+
 def get_source(
     connector_type: str,
     config: SourceConfig,
     connection: dict,
 ) -> Source:
     """Create a source connector instance using the registered factory.
+
+    .. deprecated::
+        Use :func:`get_connector` instead. This function is kept for backward compatibility.
 
     Args:
         connector_type: The connector type to instantiate.
@@ -134,14 +233,15 @@ def get_source(
     Raises:
         ConnectorError: If the connector type is not registered.
     """
-    factory = _source_registry.get(connector_type)
+    # Try unified registry first, fall back to legacy registry
+    factory = _connector_registry.get(connector_type) or _source_registry.get(connector_type)
     if factory is None:
-        available = ", ".join(sorted(_source_registry.keys())) or "(none)"
+        available = ", ".join(sorted(set(_connector_registry.keys()) | set(_source_registry.keys()))) or "(none)"
         raise ConnectorError(
             f"Unknown source connector type: '{connector_type}'",
             context={"connector_type": connector_type, "available_types": available},
         )
-    return factory(config, connection)
+    return factory(config, connection)  # type: ignore
 
 
 def get_destination(
@@ -150,6 +250,9 @@ def get_destination(
     connection: dict,
 ) -> Destination:
     """Create a destination connector instance using the registered factory.
+
+    .. deprecated::
+        Use :func:`get_connector` instead. This function is kept for backward compatibility.
 
     Args:
         connector_type: The connector type to instantiate.
@@ -162,28 +265,43 @@ def get_destination(
     Raises:
         ConnectorError: If the connector type is not registered.
     """
-    factory = _destination_registry.get(connector_type)
+    # Try unified registry first, fall back to legacy registry
+    factory = _connector_registry.get(connector_type) or _destination_registry.get(connector_type)
     if factory is None:
-        available = ", ".join(sorted(_destination_registry.keys())) or "(none)"
+        available = ", ".join(sorted(set(_connector_registry.keys()) | set(_destination_registry.keys()))) or "(none)"
         raise ConnectorError(
             f"Unknown destination connector type: '{connector_type}'",
             context={"connector_type": connector_type, "available_types": available},
         )
-    return factory(config, connection)
+    return factory(config, connection)  # type: ignore
+
+
+def list_connector_types() -> list[str]:
+    """Return a list of all registered connector types."""
+    return sorted(_connector_registry.keys())
 
 
 def list_source_types() -> list[str]:
-    """Return a list of all registered source connector types."""
-    return sorted(_source_registry.keys())
+    """Return a list of all registered source connector types.
+
+    .. deprecated::
+        Use :func:`list_connector_types` instead. This function is kept for backward compatibility.
+    """
+    return sorted(set(_connector_registry.keys()) | set(_source_registry.keys()))
 
 
 def list_destination_types() -> list[str]:
-    """Return a list of all registered destination connector types."""
-    return sorted(_destination_registry.keys())
+    """Return a list of all registered destination connector types.
+
+    .. deprecated::
+        Use :func:`list_connector_types` instead. This function is kept for backward compatibility.
+    """
+    return sorted(set(_connector_registry.keys()) | set(_destination_registry.keys()))
 
 
 def clear_registries() -> None:
     """Clear all registered connectors. Intended for testing only."""
+    _connector_registry.clear()
     _source_registry.clear()
     _destination_registry.clear()
 
