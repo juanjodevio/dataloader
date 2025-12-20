@@ -35,6 +35,9 @@ from dataloader.connectors.duckdb.destination import (
 )
 from dataloader.connectors.s3.destination import S3Destination, create_s3_destination
 
+# Unified connector (registers itself via @register_connector decorator on import)
+from dataloader.connectors.s3.connector import S3Connector, create_s3_connector
+
 
 def reregister_builtins() -> None:
     """Re-register built-in connectors after registry is cleared.
@@ -84,6 +87,8 @@ __all__ = [
     # Destination implementations
     "DuckDBDestination",
     "S3Destination",
+    # Unified connector implementations
+    "S3Connector",
     # Source factory functions
     "create_postgres_source",
     "create_csv_source",
@@ -91,5 +96,7 @@ __all__ = [
     # Destination factory functions
     "create_duckdb_destination",
     "create_s3_destination",
+    # Unified connector factory functions
+    "create_s3_connector",
 ]
 
