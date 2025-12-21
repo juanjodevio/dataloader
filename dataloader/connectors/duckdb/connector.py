@@ -20,16 +20,7 @@ from dataloader.models.destination_config import DestinationConfig
 from dataloader.models.source_config import SourceConfig
 
 from .config import DuckDBConnectorConfig
-
-# Type mapping from batch column types to DuckDB types
-DUCKDB_TYPE_MAP: dict[str, str] = {
-    "string": "VARCHAR",
-    "int": "INTEGER",
-    "float": "DOUBLE",
-    "datetime": "TIMESTAMP",
-    "bool": "BOOLEAN",
-    "date": "DATE",
-}
+from .type_mapper import DuckDBTypeMapper
 
 # Default batch size for reading
 DEFAULT_BATCH_SIZE = 1000
@@ -85,6 +76,7 @@ class DuckDBConnector:
         self._batch_size = DEFAULT_BATCH_SIZE
         self._conn: DuckDBPyConnection | None = None
         self._table_created = False
+        self._type_mapper = DuckDBTypeMapper()
 
     @property
     def _qualified_table(self) -> str:
@@ -117,16 +109,22 @@ class DuckDBConnector:
 
     # ========== Reading methods ==========
 
-    def _get_schema(self) -> list[tuple[str, str]]:
-        """Fetch column names and types from DuckDB table.
+    def _get_schema(self) -> list[tuple[str, pa.DataType]]:
+        """Fetch column names and Arrow types from DuckDB table.
 
         Returns:
-            List of (column_name, data_type) tuples.
+            List of (column_name, arrow_type) tuples.
         """
         conn = self._get_connection()
         try:
             result = conn.execute(f"DESCRIBE {self._qualified_table}")
-            return [(row[0], row[1]) for row in result.fetchall()]
+            schema_info = []
+            for row in result.fetchall():
+                col_name = row[0]
+                duckdb_type_str = row[1]
+                arrow_type = self._type_mapper.connector_type_to_arrow(duckdb_type_str)
+                schema_info.append((col_name, arrow_type))
+            return schema_info
         except duckdb.CatalogException as e:
             raise ConnectorError(
                 f"Table does not exist: {e}",
@@ -179,7 +177,8 @@ class DuckDBConnector:
             conn = self._get_connection()
             schema_info = self._get_schema()
             columns = [col[0] for col in schema_info]
-            column_types = {col[0]: col[1] for col in schema_info}
+            # Convert Arrow types to string for metadata
+            column_types = {col[0]: str(col[1]) for col in schema_info}
 
             query, params = self._build_query(state)
 
@@ -231,31 +230,8 @@ class DuckDBConnector:
     # ========== Writing methods ==========
 
     def _map_arrow_type_to_duckdb(self, arrow_type: pa.DataType) -> str:
-        """Map Arrow type to DuckDB type."""
-        # Handle common Arrow types
-        if pa.types.is_string(arrow_type) or pa.types.is_large_string(arrow_type):
-            return "VARCHAR"
-        elif pa.types.is_integer(arrow_type):
-            if pa.types.is_int64(arrow_type):
-                return "BIGINT"
-            elif pa.types.is_int32(arrow_type):
-                return "INTEGER"
-            else:
-                return "INTEGER"
-        elif pa.types.is_floating(arrow_type):
-            if pa.types.is_float64(arrow_type):
-                return "DOUBLE"
-            else:
-                return "FLOAT"
-        elif pa.types.is_boolean(arrow_type):
-            return "BOOLEAN"
-        elif pa.types.is_timestamp(arrow_type):
-            return "TIMESTAMP"
-        elif pa.types.is_date(arrow_type) or pa.types.is_date32(arrow_type):
-            return "DATE"
-        else:
-            # Default to VARCHAR for unknown types
-            return "VARCHAR"
+        """Map Arrow type to DuckDB type (delegates to TypeMapper)."""
+        return self._type_mapper.arrow_to_connector_type(arrow_type)
 
     def _get_existing_columns(self, conn: DuckDBPyConnection) -> set[str]:
         """Get existing columns for the table."""

@@ -29,6 +29,7 @@ from dataloader.models.destination_config import DestinationConfig
 from dataloader.models.source_config import SourceConfig
 
 from .config import PostgresConnectorConfig
+from .type_mapper import PostgresTypeMapper
 
 
 class PostgresConnector:
@@ -98,6 +99,7 @@ class PostgresConnector:
         self._batch_size = self.DEFAULT_BATCH_SIZE
         self._engine: Engine | None = None
         self._table_created = False
+        self._type_mapper = PostgresTypeMapper()
 
     def _build_connection_url(self) -> str:
         """Build SQLAlchemy connection URL from config."""
@@ -144,17 +146,23 @@ class PostgresConnector:
 
     # ========== Reading methods ==========
 
-    def _get_schema(self) -> list[tuple[str, str]]:
-        """Fetch column names and types using SQLAlchemy inspector.
+    def _get_schema(self) -> list[tuple[str, pa.DataType]]:
+        """Fetch column names and Arrow types using SQLAlchemy inspector.
 
         Returns:
-            List of (column_name, data_type) tuples.
+            List of (column_name, arrow_type) tuples.
         """
         engine = self._get_engine()
         inspector = inspect(engine)
 
         columns = inspector.get_columns(self._table, schema=self._db_schema)
-        return [(col["name"], str(col["type"])) for col in columns]
+        result = []
+        for col in columns:
+            col_name = col["name"]
+            pg_type_str = str(col["type"])
+            arrow_type = self._type_mapper.connector_type_to_arrow(pg_type_str)
+            result.append((col_name, arrow_type))
+        return result
 
     def _build_query(self, state: State) -> tuple[str, dict[str, Any]]:
         """Build SELECT query with optional cursor-based filtering.
@@ -201,7 +209,8 @@ class PostgresConnector:
             engine = self._get_engine()
             schema_info = self._get_schema()
             columns = [col[0] for col in schema_info]
-            column_types = {col[0]: col[1] for col in schema_info}
+            # Convert Arrow types to string for metadata
+            column_types = {col[0]: str(col[1]) for col in schema_info}
 
             query, params = self._build_query(state)
 
@@ -253,35 +262,8 @@ class PostgresConnector:
             return set()
 
     def _map_arrow_type_to_postgres(self, arrow_type: pa.DataType) -> str:
-        """Map Arrow type to PostgreSQL type."""
-        # Handle common Arrow types
-        if pa.types.is_string(arrow_type) or pa.types.is_large_string(arrow_type):
-            return "VARCHAR"
-        elif pa.types.is_integer(arrow_type):
-            if pa.types.is_int64(arrow_type):
-                return "BIGINT"
-            elif pa.types.is_int32(arrow_type):
-                return "INTEGER"
-            elif pa.types.is_int16(arrow_type):
-                return "SMALLINT"
-            else:
-                return "INTEGER"
-        elif pa.types.is_floating(arrow_type):
-            if pa.types.is_float64(arrow_type):
-                return "DOUBLE PRECISION"
-            else:
-                return "REAL"
-        elif pa.types.is_boolean(arrow_type):
-            return "BOOLEAN"
-        elif pa.types.is_timestamp(arrow_type):
-            return "TIMESTAMP"
-        elif pa.types.is_date(arrow_type):
-            return "DATE"
-        elif pa.types.is_date32(arrow_type):
-            return "DATE"
-        else:
-            # Default to VARCHAR for unknown types
-            return "VARCHAR"
+        """Map Arrow type to PostgreSQL type (delegates to TypeMapper)."""
+        return self._type_mapper.arrow_to_connector_type(arrow_type)
 
     def _create_table(self, conn: Any, batch: ArrowBatch) -> None:
         """Create table from batch schema if it doesn't exist."""

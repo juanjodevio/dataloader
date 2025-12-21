@@ -262,14 +262,30 @@ class TestDuckDBConnector:
         connector.close()
 
     def test_duckdb_type_mapping(self, duckdb_config: DestinationConfig):
-        """Test type mapping from batch types to DuckDB types."""
-        from dataloader.connectors.duckdb.connector import DUCKDB_TYPE_MAP
+        """Test type mapping from Arrow types to DuckDB types."""
+        from dataloader.connectors.duckdb.type_mapper import DuckDBTypeMapper
+        import pyarrow as pa
 
-        assert DUCKDB_TYPE_MAP["string"] == "VARCHAR"
-        assert DUCKDB_TYPE_MAP["int"] == "INTEGER"
-        assert DUCKDB_TYPE_MAP["float"] == "DOUBLE"
-        assert DUCKDB_TYPE_MAP["datetime"] == "TIMESTAMP"
-        assert DUCKDB_TYPE_MAP["bool"] == "BOOLEAN"
+        mapper = DuckDBTypeMapper()
+
+        # Test Arrow to DuckDB type mapping
+        assert mapper.arrow_to_connector_type(pa.string()) == "VARCHAR"
+        assert mapper.arrow_to_connector_type(pa.int64()) == "BIGINT"
+        assert mapper.arrow_to_connector_type(pa.int32()) == "INTEGER"
+        assert mapper.arrow_to_connector_type(pa.float64()) == "DOUBLE"
+        assert mapper.arrow_to_connector_type(pa.float32()) == "FLOAT"
+        assert mapper.arrow_to_connector_type(pa.bool_()) == "BOOLEAN"
+        assert mapper.arrow_to_connector_type(pa.timestamp("us")) == "TIMESTAMP"
+        assert mapper.arrow_to_connector_type(pa.date32()) == "DATE"
+
+        # Test DuckDB to Arrow type mapping
+        assert mapper.connector_type_to_arrow("VARCHAR").equals(pa.string())
+        assert mapper.connector_type_to_arrow("BIGINT").equals(pa.int64())
+        assert mapper.connector_type_to_arrow("INTEGER").equals(pa.int32())
+        assert mapper.connector_type_to_arrow("DOUBLE").equals(pa.float64())
+        assert mapper.connector_type_to_arrow("BOOLEAN").equals(pa.bool_())
+        assert mapper.connector_type_to_arrow("TIMESTAMP").equals(pa.timestamp("us"))
+        assert mapper.connector_type_to_arrow("DATE").equals(pa.date32())
 
     def test_create_duckdb_connector_factory(self, duckdb_config: DestinationConfig):
         """Test the factory function creates DuckDBConnector."""

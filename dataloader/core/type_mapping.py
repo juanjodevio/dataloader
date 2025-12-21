@@ -4,6 +4,8 @@ This module provides centralized type mapping functions used by transforms
 and connectors to ensure consistency across the codebase.
 """
 
+from typing import Protocol
+
 import pyarrow as pa
 
 # String type names to Arrow types (used by cast transform)
@@ -60,3 +62,33 @@ def arrow_type_to_string(arrow_type: pa.DataType) -> str:
             if name in ("str", "int", "float", "bool", "datetime"):
                 return name
     return str(arrow_type)
+
+
+class TypeMapper(Protocol):
+    """Protocol for connector-specific type mapping.
+
+    Connectors implement this protocol to provide bidirectional type mapping
+    between Arrow types and connector-specific type representations.
+    """
+
+    def arrow_to_connector_type(self, arrow_type: pa.DataType) -> str:
+        """Map Arrow type to connector-specific type string.
+
+        Args:
+            arrow_type: PyArrow DataType
+
+        Returns:
+            Connector-specific type string (e.g., "VARCHAR", "BIGINT")
+        """
+        ...
+
+    def connector_type_to_arrow(self, connector_type: str) -> pa.DataType:
+        """Map connector-specific type to Arrow type.
+
+        Args:
+            connector_type: Connector-specific type string
+
+        Returns:
+            PyArrow DataType
+        """
+        ...

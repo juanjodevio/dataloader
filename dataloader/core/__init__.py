@@ -10,6 +10,12 @@ from dataloader.core.exceptions import (
     StateError,
     TransformError,
 )
+from dataloader.core.schema import (
+    Column,
+    EvolutionPolicy,
+    Schema,
+    SchemaMode,
+)
 from dataloader.core.state import State
 from dataloader.core.state_backend import LocalStateBackend, StateBackend
 
@@ -26,4 +32,8 @@ __all__ = [
     "StateError",
     "EngineError",
     "execute",
+    "Schema",
+    "Column",
+    "SchemaMode",
+    "EvolutionPolicy",
 ]
