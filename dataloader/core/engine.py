@@ -5,7 +5,7 @@ import logging
 import time
 from typing import Any
 
-from dataloader.connectors import get_destination, get_source
+from dataloader.connectors import get_connector
 from dataloader.core.batch import Batch
 from dataloader.core.exceptions import EngineError
 from dataloader.core.metrics import MetricsCollector
@@ -74,9 +74,9 @@ def _execute_sequential(
 
         logger.debug(f"Loaded state: {state.to_dict()}", extra={"recipe_name": recipe.name})
 
-        source = _get_source(recipe.source)
+        source = _get_connector(recipe.source)
         transformer = _get_transformer(recipe.transform)
-        destination = _get_destination(recipe.destination)
+        destination = _get_connector(recipe.destination)
 
         for batch in source.read_batches(state):
             batch_start = time.time()
@@ -161,9 +161,9 @@ async def _execute_async(
             extra={"recipe_name": recipe.name},
         )
 
-        source = _get_source(recipe.source)
+        source = _get_connector(recipe.source)
         transformer = _get_transformer(recipe.transform)
-        destination = _get_destination(recipe.destination)
+        destination = _get_connector(recipe.destination)
 
         # Collect all batches first (needed for parallel processing)
         batches = list(source.read_batches(state))
@@ -240,29 +240,31 @@ async def _execute_async(
         ) from e
 
 
-def _get_source(source_config: SourceConfig) -> Any:
-    """Get source connector instance from config.
+def _get_connector(config: SourceConfig | DestinationConfig) -> Any:
+    """Get connector instance from config (unified for source and destination).
 
-    All connection parameters come from the source_config, which has already
+    All connection parameters come from the config, which has already
     had templates rendered during recipe loading.
 
     Args:
-        source_config: Source configuration from recipe (templates already rendered)
+        config: Source or destination configuration from recipe (templates already rendered)
 
     Returns:
-        Source connector instance
+        Connector instance (supports both read and write operations)
 
     Raises:
-        EngineError: If source cannot be created
+        EngineError: If connector cannot be created
     """
     try:
         # All connection parameters come from the config
-        # Connectors expect an empty connection dict since config has all values
-        return get_source(source_config.type, source_config, {})
+        # Connectors expect None for connection since config has all values
+        # The unified registry handles both source and destination configs
+        return get_connector(config.type, config, None)
     except Exception as e:
+        config_type = "source" if isinstance(config, SourceConfig) else "destination"
         raise EngineError(
-            f"Failed to create source connector: {e}",
-            context={"source_type": source_config.type},
+            f"Failed to create {config_type} connector: {e}",
+            context={f"{config_type}_type": config.type},
         ) from e
 
 
@@ -287,28 +289,4 @@ def _get_transformer(transform_config: TransformConfig) -> TransformPipeline:
         ) from e
 
 
-def _get_destination(destination_config: DestinationConfig) -> Any:
-    """Get destination connector instance from config.
-
-    All connection parameters come from the destination_config, which has already
-    had templates rendered during recipe loading.
-
-    Args:
-        destination_config: Destination configuration from recipe (templates already rendered)
-
-    Returns:
-        Destination connector instance
-
-    Raises:
-        EngineError: If destination cannot be created
-    """
-    try:
-        # All connection parameters come from the config
-        # Connectors expect an empty connection dict since config has all values
-        return get_destination(destination_config.type, destination_config, {})
-    except Exception as e:
-        raise EngineError(
-            f"Failed to create destination connector: {e}",
-            context={"destination_type": destination_config.type},
-        ) from e
 
