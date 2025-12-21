@@ -1,14 +1,14 @@
-"""Connector protocols and registry for data sources and destinations.
+"""Connector protocols and registry for unified data connectors.
 
 This module exposes:
-- Source, Destination: Protocols defining connector interfaces
-- Registry functions: register_source, register_destination, get_source, get_destination
-- Utility functions: list_source_types, list_destination_types, clear_registries
-- Source implementations: PostgresSource, CSVSource, S3Source
-- Destination implementations: DuckDBDestination, S3Destination
+- Connector: Unified protocol for connectors that can read and/or write data
+- Registry functions: register_connector, get_connector, list_connector_types (primary)
+- Legacy functions: register_source, register_destination, get_source, get_destination (deprecated)
+- Unified connector implementations: PostgresConnector, CSVConnector, S3Connector, DuckDBConnector, FileStoreConnector
+- Legacy implementations: PostgresSource, CSVSource, S3Source, DuckDBDestination, S3Destination (deprecated)
 """
 
-from dataloader.connectors.base import Destination, Source
+from dataloader.connectors.base import Connector, Destination, Source
 
 # Registry must be imported first (connector modules use decorators on import)
 from dataloader.connectors.registry import (
@@ -94,51 +94,52 @@ def reregister_builtins() -> None:
 
 
 __all__ = [
-    # Protocols
-    "Source",
-    "Destination",
+    # Protocols (unified first, legacy for backward compatibility)
+    "Connector",  # Primary protocol
+    "Source",  # Deprecated, use Connector
+    "Destination",  # Deprecated, use Connector
     # Factory types
-    "SourceFactory",
-    "DestinationFactory",
-    # Registration functions
-    "register_connector",
-    "register_source",
-    "register_destination",
+    "SourceFactory",  # Deprecated
+    "DestinationFactory",  # Deprecated
+    # Registration functions (unified first)
+    "register_connector",  # Primary registration function
     "reregister_builtins",
-    # Retrieval functions
-    "get_connector",
-    "get_source",
-    "get_destination",
-    # Utility functions
-    "list_connector_types",
-    "list_source_types",
-    "list_destination_types",
+    "register_source",  # Deprecated, use register_connector
+    "register_destination",  # Deprecated, use register_connector
+    # Retrieval functions (unified first)
+    "get_connector",  # Primary retrieval function
+    "get_source",  # Deprecated, use get_connector
+    "get_destination",  # Deprecated, use get_connector
+    # Utility functions (unified first)
+    "list_connector_types",  # Primary listing function
+    "list_source_types",  # Deprecated, use list_connector_types
+    "list_destination_types",  # Deprecated, use list_connector_types
     "clear_registries",
-    # Source implementations
-    "PostgresSource",
-    "CSVSource",
-    "S3Source",
-    # Destination implementations
-    "DuckDBDestination",
-    "S3Destination",
-    # Unified connector implementations
+    # Unified connector implementations (primary)
     "CSVConnector",
     "DuckDBConnector",
     "FileStoreConnector",
     "PostgresConnector",
     "S3Connector",
-    # Source factory functions
-    "create_postgres_source",
-    "create_csv_source",
-    "create_s3_source",
-    # Destination factory functions
-    "create_duckdb_destination",
-    "create_s3_destination",
-    # Unified connector factory functions
+    # Unified connector factory functions (primary)
     "create_csv_connector",
     "create_duckdb_connector",
     "create_filestore_connector",
     "create_postgres_connector",
     "create_s3_connector",
+    # Legacy source implementations (deprecated)
+    "PostgresSource",
+    "CSVSource",
+    "S3Source",
+    # Legacy destination implementations (deprecated)
+    "DuckDBDestination",
+    "S3Destination",
+    # Legacy source factory functions (deprecated)
+    "create_postgres_source",
+    "create_csv_source",
+    "create_s3_source",
+    # Legacy destination factory functions (deprecated)
+    "create_duckdb_destination",
+    "create_s3_destination",
 ]
 
