@@ -1,16 +1,17 @@
 name: simple_csv
 
 source:
-  type: csv
-  path: data/input.csv
+  type: filestore
+  filepath: data/input.csv
+  format: csv
 
 transform:
   steps: []
 
 destination:
-  type: s3
-  bucket: my-bucket
-  path: output/data.csv
+  type: filestore
+  filepath: s3://my-bucket/output/data.csv
+  format: csv
   region: us-east-1
   write_mode: overwrite
 

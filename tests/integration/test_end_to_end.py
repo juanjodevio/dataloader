@@ -35,7 +35,7 @@ source:
   type: filestore
   backend: local
   format: csv
-  path: {str(csv_path)!r}
+  filepath: {str(csv_path)!r}
 
 transform:
   steps:
@@ -89,7 +89,7 @@ source:
   type: filestore
   backend: local
   format: csv
-  path: {str(csv_path)!r}
+  filepath: {str(csv_path)!r}
 
 transform:
   steps:
@@ -155,7 +155,7 @@ source:
   type: filestore
   backend: local
   format: csv
-  path: {str(csv_path)!r}
+  filepath: {str(csv_path)!r}
 
 transform:
   steps:
@@ -207,7 +207,7 @@ source:
   type: filestore
   backend: local
   format: csv
-  path: {str(csv_path)!r}
+  filepath: {str(csv_path)!r}
   incremental:
     strategy: cursor
     cursor_column: updated_at
@@ -265,7 +265,7 @@ source:
   type: filestore
   backend: local
   format: csv
-  path: {str(csv_path)!r}
+  filepath: {str(csv_path)!r}
 
 transform:
   steps: []
@@ -306,7 +306,7 @@ source:
   type: filestore
   backend: local
   format: csv
-  path: "/tmp/test.csv"
+  filepath: "/tmp/test.csv"
 
 transform:
   steps: []
@@ -340,7 +340,7 @@ source:
   type: filestore
   backend: local
   format: csv
-  path: {str(csv_path)!r}
+  filepath: {str(csv_path)!r}
 
 destination:
   type: duckdb
@@ -381,7 +381,7 @@ source:
   type: filestore
   backend: local
   format: csv
-  path: {str(csv_path)!r}
+  filepath: {str(csv_path)!r}
 
 destination:
   type: duckdb

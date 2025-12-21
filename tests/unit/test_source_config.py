@@ -49,46 +49,88 @@ class TestSourceConfig:
         errors = exc_info.value.errors()
         assert any("requires fields" in str(err) for err in errors)
 
-    def test_s3_source_valid(self):
-        """Test valid S3 source config."""
+    def test_filestore_source_valid_local(self):
+        """Test valid FileStore source config with local backend."""
         config = SourceConfig(
-            type="s3",
-            bucket="my-bucket",
-            path="data/file.csv",
+            type="filestore",
+            backend="local",
+            filepath="/path/to/file.csv",
+            format="csv",
         )
-        assert config.type == "s3"
-        assert config.bucket == "my-bucket"
-        assert config.path == "data/file.csv"
+        assert config.type == "filestore"
+        assert config.backend == "local"
+        assert config.filepath == "/path/to/file.csv"
+        assert config.format == "csv"
 
-    def test_s3_source_missing_bucket(self):
-        """Test S3 source with missing bucket."""
+    def test_filestore_source_valid_s3(self):
+        """Test valid FileStore source config with S3 backend."""
+        config = SourceConfig(
+            type="filestore",
+            backend="s3",
+            filepath="s3://my-bucket/data/file.csv",
+            format="csv",
+        )
+        assert config.type == "filestore"
+        assert config.backend == "s3"
+        assert config.filepath == "s3://my-bucket/data/file.csv"
+        assert config.format == "csv"
+
+    def test_filestore_source_s3_inferred_from_path(self):
+        """Test FileStore source with S3 backend inferred from s3:// path."""
+        config = SourceConfig(
+            type="filestore",
+            filepath="s3://my-bucket/data/file.csv",
+            format="csv",
+        )
+        assert config.type == "filestore"
+        assert config.filepath == "s3://my-bucket/data/file.csv"
+        assert config.format == "csv"
+
+    def test_filestore_source_missing_filepath(self):
+        """Test FileStore source with missing filepath."""
         with pytest.raises(ValidationError) as exc_info:
             SourceConfig(
-                type="s3",
-                path="data/file.csv",
-                # missing bucket
+                type="filestore",
+                backend="local",
+                format="csv",
+                # missing filepath
             )
         errors = exc_info.value.errors()
-        assert any("requires 'bucket' and 'path'" in str(err) for err in errors)
+        assert any("requires 'filepath' field" in str(err) for err in errors)
 
-    def test_csv_source_valid(self):
-        """Test valid CSV source config."""
-        config = SourceConfig(
-            type="csv",
-            path="/path/to/file.csv",
-        )
-        assert config.type == "csv"
-        assert config.path == "/path/to/file.csv"
-
-    def test_csv_source_missing_path(self):
-        """Test CSV source with missing path."""
+    def test_filestore_source_missing_format(self):
+        """Test FileStore source with missing format."""
         with pytest.raises(ValidationError) as exc_info:
             SourceConfig(
-                type="csv",
-                # missing path
+                type="filestore",
+                backend="local",
+                filepath="/path/to/file.csv",
+                # missing format
             )
         errors = exc_info.value.errors()
-        assert any("requires 'path'" in str(err) for err in errors)
+        assert any("requires 'format' field" in str(err) for err in errors)
+
+    def test_duckdb_source_valid(self):
+        """Test valid DuckDB source config."""
+        config = SourceConfig(
+            type="duckdb",
+            database=":memory:",
+            table="users",
+        )
+        assert config.type == "duckdb"
+        assert config.database == ":memory:"
+        assert config.table == "users"
+
+    def test_duckdb_source_missing_table(self):
+        """Test DuckDB source with missing table."""
+        with pytest.raises(ValidationError) as exc_info:
+            SourceConfig(
+                type="duckdb",
+                database=":memory:",
+                # missing table
+            )
+        errors = exc_info.value.errors()
+        assert any("requires 'table' field" in str(err) for err in errors)
 
     def test_incremental_config(self):
         """Test source with incremental config."""

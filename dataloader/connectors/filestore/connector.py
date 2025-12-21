@@ -51,15 +51,15 @@ class FileStoreConnector:
             self._format = config.format
             self._write_mode = config.write_mode
         elif isinstance(config, SourceConfig):
-            # Infer backend from path or config
+            # Infer backend from filepath or config
             self._backend = self._infer_backend_from_config(config)
-            self._path = config.path or ""
-            self._format = "csv"  # Default format
+            self._path = config.filepath or ""
+            self._format = getattr(config, "format", "csv") or "csv"
             self._write_mode = "append"
         else:  # DestinationConfig
             self._backend = self._infer_backend_from_config(config)
-            self._path = config.path or ""
-            self._format = "csv"  # Default format
+            self._path = config.filepath or ""
+            self._format = getattr(config, "format", "csv") or "csv"
             self._write_mode = config.write_mode
 
         # Check S3-specific dependencies if using S3 backend
@@ -96,24 +96,25 @@ class FileStoreConnector:
     def _infer_backend_from_config(
         self, config: Union[SourceConfig, DestinationConfig]
     ) -> str:
-        """Infer storage backend from config path or type."""
-        path = getattr(config, "path", "") or ""
-
-        # Check for URL schemes
-        if path.startswith("s3://"):
-            return "s3"
-        elif path.startswith("gs://"):
-            return "gcs"
-        elif path.startswith("az://") or path.startswith("abfss://"):
-            return "azure"
-        elif path.startswith("file://") or not any(
-            path.startswith(scheme) for scheme in ["s3://", "gs://", "az://", "abfss://"]
-        ):
+        """Infer storage backend from config filepath or explicit backend."""
+        # Check explicit backend first
+        if hasattr(config, "backend") and getattr(config, "backend"):
+            return getattr(config, "backend")
+        
+        # Infer from filepath
+        filepath = getattr(config, "filepath", "") or ""
+        if not filepath:
             return "local"
 
-        # Fallback: check if config has bucket (S3) or other backend-specific fields
-        if hasattr(config, "bucket") and getattr(config, "bucket"):
+        # Check for URL schemes
+        if filepath.startswith("s3://"):
             return "s3"
+        elif filepath.startswith("gs://"):
+            return "gcs"
+        elif filepath.startswith("az://") or filepath.startswith("abfss://"):
+            return "azure"
+        elif filepath.startswith("file://"):
+            return "local"
 
         return "local"  # Default to local
 
@@ -163,39 +164,89 @@ class FileStoreConnector:
         return storage_options
 
     def _build_file_url(self, file_path: str) -> str:
-        """Build full file URL for the configured backend."""
+        """Build full file URL for the configured backend.
+        
+        file_path is relative to the base filepath configured in the connector.
+        If file_path is already a full URL, return it as-is.
+        """
+        # If file_path is already a full URL, return as-is
+        if file_path.startswith(("s3://", "gs://", "az://", "abfss://", "file://")):
+            return file_path
+        
+        # For S3FileStoreConfig, construct from bucket + path
+        if isinstance(self._config, S3FileStoreConfig):
+            bucket = self._config.bucket
+            key = file_path.lstrip("/")
+            return f"s3://{bucket}/{key}"
+        
+        # For SourceConfig/DestinationConfig, filepath already contains full path
+        # file_path is relative to the base filepath, so we need to combine them
+        base_path = self._path
         if self._backend == "s3":
-            # For S3, path should be bucket/path or we extract from config
-            if isinstance(self._config, S3FileStoreConfig):
-                bucket = self._config.bucket
-                # Remove leading slash from path
-                key = file_path.lstrip("/")
-                return f"s3://{bucket}/{key}"
-            elif file_path.startswith("s3://"):
-                return file_path
+            if base_path.startswith("s3://"):
+                # Extract bucket and prefix from base_path
+                # base_path is like "s3://bucket/prefix/" or "s3://bucket/prefix/*.csv"
+                # file_path is a specific file within that prefix
+                if base_path.endswith("/") or "*" in base_path:
+                    # Remove trailing slash and glob patterns
+                    base_dir = base_path.rstrip("/").split("*")[0].rstrip("/")
+                    return f"{base_dir}/{file_path.lstrip('/')}"
+                else:
+                    # base_path is a specific file, file_path should be relative
+                    base_dir = "/".join(base_path.split("/")[:-1])
+                    return f"{base_dir}/{file_path.lstrip('/')}"
             else:
-                # Try to infer bucket from path or config
-                bucket = getattr(self._config, "bucket", None) or ""
-                if bucket:
-                    key = file_path.lstrip("/")
-                    return f"s3://{bucket}/{key}"
-                return f"s3://{file_path}"
+                # Fallback: assume file_path is relative to base_path
+                return f"s3://{base_path}/{file_path.lstrip('/')}"
         elif self._backend == "local":
-            # For local, convert to file:// URL or use as-is
-            if file_path.startswith("file://"):
-                return file_path
-            elif Path(file_path).is_absolute():
-                return f"file://{file_path}"
+            # For local backend, combine base_path with file_path
+            if not file_path:
+                # No file_path means use base_path directly as the file
+                if base_path.startswith("file://"):
+                    return base_path
+                elif Path(base_path).is_absolute():
+                    return f"file://{base_path}"
+                return base_path
+            
+            # Check if base_path is a directory or file
+            base_clean = base_path.replace("file://", "")
+            
+            # Determine if base is directory: ends with /, has glob, or has no file extension
+            valid_extensions = [".csv", ".json", ".jsonl", ".parquet"]
+            has_extension = any(base_clean.lower().endswith(ext) for ext in valid_extensions)
+            is_directory = (
+                base_path.endswith("/") 
+                or "*" in base_path
+                or not has_extension
+            )
+            
+            if is_directory:
+                # Base is a directory, combine with file_path
+                if base_path.startswith("file://"):
+                    return f"{base_path.rstrip('/')}/{file_path}"
+                else:
+                    base_path_obj = Path(base_clean)
+                    combined = base_path_obj / file_path
+                    if base_path_obj.is_absolute():
+                        return str(combined)
+                    return str(combined)
             else:
-                return file_path  # Relative path, use as-is
+                # Base is a file, use it directly (ignore file_path)
+                if base_path.startswith("file://"):
+                    return base_path
+                elif Path(base_clean).is_absolute():
+                    return f"file://{base_path}"
+                return base_path
         elif self._backend == "gcs":
-            if not file_path.startswith("gs://"):
-                return f"gs://{file_path}"
-            return file_path
+            if base_path.startswith("gs://"):
+                base_dir = base_path.rstrip("/").split("*")[0].rstrip("/")
+                return f"{base_dir}/{file_path.lstrip('/')}"
+            return f"gs://{base_path}/{file_path.lstrip('/')}"
         elif self._backend == "azure":
-            if not file_path.startswith(("az://", "abfss://")):
-                return f"az://{file_path}"
-            return file_path
+            if base_path.startswith(("az://", "abfss://")):
+                base_dir = base_path.rstrip("/").split("*")[0].rstrip("/")
+                return f"{base_dir}/{file_path.lstrip('/')}"
+            return f"az://{base_path}/{file_path.lstrip('/')}"
         else:
             return file_path
 
@@ -346,20 +397,18 @@ class FileStoreConnector:
     # ========== Writing methods ==========
 
     def _generate_file_path(self, batch: Batch) -> str:
-        """Generate file path for the batch."""
+        """Generate file path for the batch.
+        
+        Returns just the filename (e.g., 'data_20241221_123456_0001.csv').
+        The base path will be combined in _build_file_url.
+        """
         timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
         self._batch_counter += 1
 
         # Get extension from format handler (use first extension)
         ext = self._format_handler.extensions[0] if self._format_handler.extensions else ".dat"
 
-        filename = f"data_{timestamp}_{self._batch_counter:04d}{ext}"
-
-        # Build full path
-        base_path = self._path.rstrip("/")
-        if base_path:
-            return f"{base_path}/{filename}"
-        return filename
+        return f"data_{timestamp}_{self._batch_counter:04d}{ext}"
 
     def _delete_existing_files(self) -> None:
         """Delete existing files at the destination path (for overwrite mode)."""

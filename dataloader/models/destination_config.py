@@ -21,11 +21,16 @@ class DestinationConfig(BaseModel):
         default=None, description="Table name (required for database connectors)"
     )
     
-    # File-based connectors
-    path: Optional[str] = Field(
-        default=None, description="File path (supports templates, required for file-based connectors)"
+    # FileStore connector fields
+    backend: Optional[str] = Field(
+        default=None, description="Storage backend (e.g., 'local', 's3'). Can be inferred from filepath."
     )
-    bucket: Optional[str] = Field(default=None, description="S3 bucket name (supports templates)")
+    filepath: Optional[str] = Field(
+        default=None, description="File path/pattern (supports glob, URL schemes: s3://, gs://, etc., required for filestore connector)"
+    )
+    format: Optional[str] = Field(
+        default=None, description="File format (e.g., 'csv', 'json', 'jsonl', 'parquet')"
+    )
     region: Optional[str] = Field(default=None, description="AWS region")
     access_key: Optional[str] = Field(default=None, description="AWS access key (supports templates)")
     secret_key: Optional[str] = Field(default=None, description="AWS secret key (supports templates)")
@@ -55,12 +60,11 @@ class DestinationConfig(BaseModel):
                 raise ValueError(
                     f"Destination type 'duckdb' requires fields: {', '.join(missing)}"
                 )
-        elif self.type in ("s3",):
-            if not self.bucket or not self.path:
-                raise ValueError(f"Destination type '{self.type}' requires 'bucket' and 'path' fields")
-        elif self.type in ("csv", "parquet"):
-            if not self.path:
-                raise ValueError(f"Destination type '{self.type}' requires 'path' field")
+        elif self.type == "filestore":
+            if not self.filepath:
+                raise ValueError("Destination type 'filestore' requires 'filepath' field")
+            if not self.format:
+                raise ValueError("Destination type 'filestore' requires 'format' field")
 
         if self.write_mode == "merge" and not self.merge_keys:
             raise ValueError("merge_keys is required when write_mode is 'merge'")

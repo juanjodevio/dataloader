@@ -338,7 +338,8 @@ class TestFileStoreLocalConnector:
 
         config = SourceConfig(
             type="filestore",
-            path=str(test_dir),
+            filepath=str(test_dir),
+            format="csv",
         )
         connector = FileStoreConnector(config)
 
@@ -353,7 +354,8 @@ class TestFileStoreLocalConnector:
 
         config = DestinationConfig(
             type="filestore",
-            path=str(test_dir),
+            filepath=str(test_dir),
+            format="csv",
             write_mode="overwrite",
         )
         connector = FileStoreConnector(config)
@@ -366,7 +368,8 @@ class TestFileStoreLocalConnector:
         """Test that S3 URLs are correctly inferred."""
         config = SourceConfig(
             type="filestore",
-            path="s3://my-bucket/data/",
+            filepath="s3://my-bucket/data/",
+            format="csv",
         )
         connector = FileStoreConnector(config)
 
@@ -379,7 +382,8 @@ class TestFileStoreLocalConnector:
 
         config = SourceConfig(
             type="filestore",
-            path=str(test_dir),
+            filepath=str(test_dir),
+            format="csv",
         )
         connector = FileStoreConnector(config)
 

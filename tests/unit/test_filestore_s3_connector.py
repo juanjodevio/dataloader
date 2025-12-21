@@ -469,7 +469,8 @@ class TestFileStoreS3Connector:
         """Test FileStoreConnector with SourceConfig for S3."""
         config = SourceConfig(
             type="filestore",
-            path="s3://test-bucket/data/",
+            filepath="s3://test-bucket/data/",
+            format="csv",
         )
         connector = FileStoreConnector(config)
 
@@ -481,7 +482,8 @@ class TestFileStoreS3Connector:
         """Test FileStoreConnector with DestinationConfig for S3."""
         config = DestinationConfig(
             type="filestore",
-            path="s3://test-bucket/data/",
+            filepath="s3://test-bucket/data/",
+            format="csv",
             write_mode="overwrite",
         )
         connector = FileStoreConnector(config)
@@ -494,7 +496,8 @@ class TestFileStoreS3Connector:
         """Test that S3 URLs are correctly inferred."""
         config = SourceConfig(
             type="filestore",
-            path="s3://my-bucket/data/",
+            filepath="s3://my-bucket/data/",
+            format="csv",
         )
         connector = FileStoreConnector(config)
 

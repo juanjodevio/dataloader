@@ -67,29 +67,29 @@ class TestDestinationConfig:
         assert config.write_mode == "merge"
         assert config.merge_keys == ["id"]
 
-    def test_s3_destination_valid(self):
-        """Test valid S3 destination config."""
+    def test_filestore_destination_valid(self):
+        """Test valid FileStore destination config."""
         config = DestinationConfig(
-            type="s3",
-            bucket="my-bucket",
-            path="output/data.parquet",
+            type="filestore",
+            filepath="s3://my-bucket/output/data.parquet",
+            format="parquet",
             write_mode="overwrite",
         )
-        assert config.type == "s3"
-        assert config.bucket == "my-bucket"
-        assert config.path == "output/data.parquet"
+        assert config.type == "filestore"
+        assert config.filepath == "s3://my-bucket/output/data.parquet"
+        assert config.format == "parquet"
         assert config.write_mode == "overwrite"
 
-    def test_s3_destination_missing_bucket(self):
-        """Test S3 destination with missing bucket."""
+    def test_filestore_destination_missing_filepath(self):
+        """Test FileStore destination with missing filepath."""
         with pytest.raises(ValidationError) as exc_info:
             DestinationConfig(
-                type="s3",
-                path="output/data.parquet",
-                # missing bucket
+                type="filestore",
+                format="parquet",
+                # missing filepath
             )
         errors = exc_info.value.errors()
-        assert any("requires 'bucket' and 'path'" in str(err) for err in errors)
+        assert any("requires 'filepath' field" in str(err) for err in errors)
 
     def test_write_modes(self):
         """Test all write modes."""

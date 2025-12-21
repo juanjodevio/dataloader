@@ -17,7 +17,7 @@ class IncrementalConfig(BaseModel):
 class SourceConfig(BaseModel):
     """Configuration for data source."""
 
-    type: str = Field(description="Source connector type (e.g., 'postgres', 's3', 'csv')")
+    type: str = Field(description="Source connector type (e.g., 'postgres', 'duckdb', 'filestore')")
     
     # Database connectors
     host: Optional[str] = Field(default=None, description="Database host (supports templates)")
@@ -30,11 +30,16 @@ class SourceConfig(BaseModel):
         default=None, description="Table name (required for database connectors)"
     )
     
-    # File-based connectors
-    path: Optional[str] = Field(
-        default=None, description="File path (supports templates, required for file-based connectors)"
+    # FileStore connector fields
+    backend: Optional[str] = Field(
+        default=None, description="Storage backend (e.g., 'local', 's3'). Can be inferred from filepath."
     )
-    bucket: Optional[str] = Field(default=None, description="S3 bucket name (supports templates)")
+    filepath: Optional[str] = Field(
+        default=None, description="File path/pattern (supports glob, URL schemes: s3://, gs://, etc., required for filestore connector)"
+    )
+    format: Optional[str] = Field(
+        default=None, description="File format (e.g., 'csv', 'json', 'jsonl', 'parquet')"
+    )
     region: Optional[str] = Field(default=None, description="AWS region")
     access_key: Optional[str] = Field(default=None, description="AWS access key (supports templates)")
     secret_key: Optional[str] = Field(default=None, description="AWS secret key (supports templates)")
@@ -53,11 +58,27 @@ class SourceConfig(BaseModel):
                 raise ValueError(
                     f"Source type '{self.type}' requires fields: {', '.join(missing)}"
                 )
-        elif self.type in ("s3",):
-            if not self.bucket or not self.path:
-                raise ValueError(f"Source type '{self.type}' requires 'bucket' and 'path' fields")
-        elif self.type in ("csv", "parquet"):
-            if not self.path:
-                raise ValueError(f"Source type '{self.type}' requires 'path' field")
+        elif self.type == "duckdb":
+            if not self.table:
+                raise ValueError("Source type 'duckdb' requires 'table' field")
+            # database defaults to :memory: so it's optional
+        elif self.type == "filestore":
+            if not self.filepath:
+                raise ValueError("Source type 'filestore' requires 'filepath' field")
+            if not self.format:
+                raise ValueError("Source type 'filestore' requires 'format' field")
         return self
+    
+    def _infer_backend(self) -> str:
+        """Infer storage backend from filepath."""
+        if not self.filepath:
+            return "local"
+        # Check for URL schemes
+        if self.filepath.startswith("s3://"):
+            return "s3"
+        elif self.filepath.startswith("gs://"):
+            return "gcs"
+        elif self.filepath.startswith("az://") or self.filepath.startswith("abfss://"):
+            return "azure"
+        return "local"
 
