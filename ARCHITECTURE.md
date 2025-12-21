@@ -86,18 +86,18 @@ runtime:
      └───────────┬────────────┘
                  │ Build Execution Plan
                  ▼
-     ┌────────────────────────┐
-     │     Execution Engine   │
-     ├─────────┬──────────────┤
-     │ State   │ Transform     │
-     │ Mgmt    │ Pipeline      │
-     └─────┬───┴───────┬──────┘
+     ┌──────────────────────────┐
+     │     Execution Engine     │
+     ├─────────┬────────────────┤
+     │ State   │ Transform      │
+     │ Mgmt    │ Pipeline       │
+     └─────┬───┴─────────┬──────┘
            │           │
            ▼           ▼
-   ┌─────────────┐  ┌──────────────┐
-   │ Source Plug- │  │ Destination   │
-   │     ins      │  │    Plug-ins   │
-   └──────┬───────┘  └───────┬───────┘
+   ┌──────────────┐ ┌───────────────┐
+   │ Source Plug- │ │ Destination   │
+   │     ins      │ │    Plug-ins   │
+   └──────┬───────┘ └───────┬───────┘
           │                  │
           ▼                  ▼
      Data Stream ---> Transform ---> Write
@@ -138,49 +138,53 @@ Responsible for:
 
 Templates are rendered during recipe loading, allowing connection parameters and other values to be injected from environment variables or CLI arguments. All connection configuration is specified directly in recipes using templates, not via separate connection dictionaries.
 
-### 5.2 Connectors – Plug-in Architecture ✅ Implemented
+### 5.2 Connectors – Unified Plug-in Architecture ✅ Implemented
 
-Two key protocols defined in `connectors/base.py`:
+**Unified Connector Protocol** (`connectors/base.py`):
+
+Connectors are unified into a single `Connector` protocol that can handle both read and write operations:
 
 ```python
 @runtime_checkable
-class Source(Protocol):
+class Connector(Protocol):
     def read_batches(self, state: State) -> Iterable[Batch]: ...
-
-@runtime_checkable
-class Destination(Protocol):
     def write_batch(self, batch: Batch, state: State) -> None: ...
 ```
+
+Connectors can implement read-only, write-only, or both operations depending on their capabilities.
+
+**Write Dispositions:**
+
+Connectors that support write operations support three write dispositions:
+
+- **`append`**: Add new data to existing tables/files without removing existing data
+- **`overwrite`**: Replace all existing data in the target table/file
+- **`merge`**: Update existing rows based on merge keys and insert new rows (upsert operation)
+
+The write disposition is specified in the destination configuration via the `write_mode` field. Not all connectors support all three modes (e.g., file-based connectors typically support `append` and `overwrite`, while database connectors may support all three).
 
 **Registry Pattern** (`connectors/registry.py`):
 
 ```python
 # Registration via decorator (preferred)
-@register_source("postgres")
-def create_postgres_source(config, connection):
-    return PostgresSource(config, connection)
+@register_connector("postgres")
+def create_postgres_connector(config):
+    return PostgresConnector(config)
 
 # Or direct call
-register_source("csv", create_csv_source)
+register_connector("duckdb", create_duckdb_connector)
 
 # Retrieval
-source = get_source("postgres", config, connection)
+connector = get_connector("postgres", config)
 ```
 
-**Implemented Source Connectors:**
+**Implemented Connectors:**
 
-| Connector | Stack | Features |
-|-----------|-------|----------|
-| `PostgresSource` | SQLAlchemy + psycopg2 | Streaming results, cursor-based incremental, schema introspection |
-| `CSVSource` | stdlib csv | Batched reading, type inference, header detection |
-| `S3Source` | boto3 + fsspec | Object discovery via boto3, reads via fsspec, incremental by modification time |
-
-**Implemented Destination Connectors:**
-
-| Connector | Stack | Features |
-|-----------|-------|----------|
-| `DuckDBDestination` | DuckDB | File-based or in-memory databases, automatic schema creation, append/overwrite/merge modes |
-| `S3Destination` | boto3 + fsspec | S3 object writes, supports various formats |
+| Connector | Stack | Features | Operations |
+|-----------|-------|----------|------------|
+| `PostgresConnector` | SQLAlchemy + psycopg2 | Streaming results, cursor-based incremental, schema introspection, batch inserts | Read/Write |
+| `DuckDBConnector` | DuckDB | File-based or in-memory databases, automatic schema creation, append/overwrite/merge modes, query support | Read/Write |
+| `FileStoreConnector` | fsspec + format handlers | Unified file storage abstraction, multiple backends (S3, local), multiple formats (CSV, JSON, JSONL, Parquet), incremental by modification time | Read/Write |
 
 **Technology Choices:**
 
@@ -189,9 +193,20 @@ source = get_source("postgres", config, connection)
   - Connection pooling, streaming results
   - Schema introspection via `inspect()`
 
-- **S3 and Filesystem:**
-  - **boto3** for discovery + metadata (fast, explicit, cheap)
-  - **fsspec** for reads/writes (clean file-like interface)
+- **File Storage (S3, Local, Azure, GCS):**
+  - **fsspec** for unified filesystem abstraction (clean file-like interface)
+  - **Format handlers** for extensible format support (CSV, JSON, JSONL, Parquet)
+  - Backend-specific storage options (S3 credentials, Azure credentials, etc.)
+  - Automatic backend detection from URL schemes (s3://, file://, etc.)
+
+**FileStore Connector Architecture:**
+
+The `FileStoreConnector` provides a unified interface for file-based storage:
+
+- **Backends**: S3, local filesystem (Azure, GCS, SFTP can be added)
+- **Formats**: CSV, JSON, JSONL, Parquet (extensible via format registry)
+- **Format Handlers**: Pluggable format system using `Format` ABC
+- **Custom Formats**: Users can register custom format handlers via `@register_format` decorator
 
 ### 5.3 Transform Pipeline ✅ Implemented
 
@@ -304,7 +319,7 @@ class Batch(Protocol):
     def to_dict(self) -> dict[str, Any]: ...
 ```
 
-**DictBatch Implementation:**
+**DictBatch Implementation** (Current):
 
 ```python
 batch = DictBatch(
@@ -313,6 +328,14 @@ batch = DictBatch(
     metadata={"source_type": "postgres", "table": "users"}
 )
 ```
+
+**ArrowBatch Implementation** (Planned):
+
+Future implementation will support Apache Arrow format for:
+- Zero-copy data transfer
+- Memory-efficient processing
+- Better performance for large datasets
+- Native integration with Arrow-based tools (Polars, DuckDB, etc.)
 
 ### 5.6 Exception Hierarchy ✅ Implemented
 
@@ -334,25 +357,26 @@ Core execution loop implemented in `core/engine.py`:
 ```python
 def execute(recipe: Recipe, state_backend: StateBackend) -> None:
     state = State.from_dict(state_backend.load(recipe.name))
-    source = _get_source(recipe.source)
+    source_connector = _get_connector(recipe.source)
     transformer = _get_transformer(recipe.transform)
-    destination = _get_destination(recipe.destination)
+    destination_connector = _get_connector(recipe.destination)
     
-    for batch in source.read_batches(state):
+    for batch in source_connector.read_batches(state):
         batch = transformer.apply(batch)
-        destination.write_batch(batch, state)
+        destination_connector.write_batch(batch, state)
         state_backend.save(recipe.name, state.to_dict())
 ```
 
 **Features:**
 - Loads state for recipe before execution
-- Creates source, transformer, and destination from recipe config
+- Creates source connector, transformer, and destination connector from recipe config
 - Processes batches sequentially
 - Applies transforms to each batch
-- Writes batches to destination
+- Writes batches to destination connector
 - Saves state after each batch for resumability
 - All connection parameters come from recipe (templates rendered during loading)
 - Comprehensive error handling with context
+- Unified connector interface (same connector can be used as source or destination)
 
 ## 6. Rust Engine (Optional) 🔮 Future
 
@@ -423,13 +447,15 @@ dataloader list-connectors
 - [x] Recipe inheritance (`extends:`)
 - [x] Template rendering (`{{ env_var('VAR') }}`, `{{ var('VAR') }}`, `{{ recipe.name }}`)
 - [x] Delete semantics for inheritance
-- [x] Source/Destination protocols
-- [x] Connector registry (decorator pattern)
-- [x] PostgresSource (SQLAlchemy)
-- [x] CSVSource
-- [x] S3Source (boto3 + fsspec)
-- [x] DuckDBDestination ✅
-- [x] S3Destination ✅
+- [x] Unified Connector protocol (replaces separate Source/Destination)
+- [x] Unified connector registry (decorator pattern)
+- [x] PostgresConnector (SQLAlchemy) - Read/Write
+- [x] DuckDBConnector - Read/Write
+- [x] FileStoreConnector (fsspec + format handlers) - Read/Write
+  - [x] S3 backend
+  - [x] Local filesystem backend
+  - [x] CSV, JSON, JSONL, Parquet formats
+  - [x] Extensible format registry
 - [x] Batch and State models
 - [x] Exception hierarchy
 - [x] Transform pipeline executor
@@ -441,6 +467,7 @@ dataloader list-connectors
 - [x] Example recipes ✅
 - [x] Documentation (README.md) ✅
 - [x] Integration tests ✅
+- [x] Comprehensive test suite (93+ connector tests passing)
 
 ### v0.2 – Reliable MVP ✅ Complete
 
@@ -450,6 +477,43 @@ dataloader list-connectors
 - [x] S3/DynamoDB state backends
 - [x] Full CLI interface
 - [x] State backend factory
+
+### v0.2.1 – Optional Dependencies & Integration Tests 🚧 In Progress
+
+**Goal**: Improve dependency management and test coverage
+
+- [ ] **Optional Dependencies (Extras)**
+  - Split dependencies into optional extras based on connector needs
+  - `[postgres]` extra: psycopg2-binary, sqlalchemy
+  - `[s3]` extra: boto3, s3fs, fsspec
+  - `[duckdb]` extra: duckdb
+  - `[parquet]` extra: pyarrow, pandas
+  - `[all]` extra: all optional dependencies
+  - Update `pyproject.toml` with extras configuration
+  - Update installation docs with examples
+
+- [ ] **Enhanced Integration Tests**
+  - Expand integration test coverage
+  - Test multi-connector pipelines (Postgres → FileStore → DuckDB)
+  - Test format conversions (CSV → JSON → Parquet)
+  - Test incremental loading across different connectors
+  - Test error recovery and state persistence
+  - Test recipe inheritance with connectors
+  - Add performance benchmarks
+
+**Example Installation:**
+
+```bash
+# Minimal installation
+pip install dataloader
+
+# With specific connectors
+pip install dataloader[postgres,duckdb]
+pip install dataloader[s3,parquet]
+
+# All connectors
+pip install dataloader[all]
+```
 
 ### v0.3 – Schema Management & Type System
 
@@ -748,12 +812,48 @@ source:
   - Audit logging
   - Role-based access control
 
+### v0.3.1 – Arrow Batch Support
+
+**Goal**: Add Apache Arrow batch format for improved performance
+
+- [ ] **ArrowBatch Implementation**
+  - Implement `ArrowBatch` class conforming to `Batch` protocol
+  - Use PyArrow for Arrow format support
+  - Zero-copy data transfer between connectors
+  - Memory-efficient processing for large datasets
+
+- [ ] **Connector Arrow Support**
+  - Update connectors to support Arrow batches
+  - PostgresConnector: Arrow-based reads/writes
+  - DuckDBConnector: Native Arrow support
+  - FileStoreConnector: Arrow format handler
+  - Automatic conversion between DictBatch and ArrowBatch
+
+- [ ] **Performance Benefits**
+  - Reduced memory footprint
+  - Faster data transfer
+  - Better integration with Arrow-based tools (Polars, DuckDB)
+  - Parallel processing without GIL limitations
+
+**Example Usage:**
+
+```python
+from dataloader import ArrowBatch
+
+# Connectors can return ArrowBatch for better performance
+for batch in connector.read_batches(state):
+    # batch is ArrowBatch, zero-copy operations
+    transformed = transform.apply(batch)
+    destination.write_batch(transformed, state)
+```
+
 ### v0.10 – Rust Engine (Performance)
 
 **Goal**: Optional Rust acceleration for performance-critical operations
 
-- [ ] **Arrow Batches**
-  - Arrow-formatted batch representation
+- [ ] **Arrow Batches (Rust Implementation)**
+  - Native Rust Arrow implementation
+  - Even better performance than Python Arrow
   - Zero-copy data transfer
   - Memory-efficient processing
 
@@ -766,6 +866,31 @@ source:
   - CSV/Parquet read/write at high throughput
   - IO parallel orchestration without Python GIL
   - Bindings via PyO3
+
+### v0.11 – SFTP Backend Support
+
+**Goal**: Add SFTP backend to FileStore connector for secure file transfer
+
+- [ ] **SFTP Backend Implementation**
+  - Add SFTP backend to FileStore connector
+  - Support SFTP authentication (password, key-based)
+  - Implement SFTP file operations (read, write, list, delete)
+  - Add `SFTPFileStoreConfig` configuration class
+  - Update backend detection logic
+  - Add SFTP integration tests
+
+**Example Recipe with SFTP:**
+
+```yaml
+source:
+  type: filestore
+  backend: sftp
+  host: sftp.example.com
+  username: "{{ env_var('SFTP_USER') }}"
+  password: "{{ env_var('SFTP_PASSWORD') }}"
+  path: /data/export/
+  format: csv
+```
 
 ## 9. Differentiators vs Existing Tools
 
@@ -803,21 +928,21 @@ dataloader/
     templates.py          # Template rendering engine
   connectors/
     __init__.py           # Registry + exports
-    base.py               # Source/Destination protocols
-    registry.py           # Connector registry
+    base.py                 # Unified Connector protocol
+    registry.py             # Unified connector registry
     postgres/
       __init__.py
-      source.py           # PostgresSource (SQLAlchemy)
-    csv/
-      __init__.py
-      source.py           # CSVSource
-    s3/
-      __init__.py
-      source.py           # S3Source (boto3 + fsspec)
-      destination.py      # S3Destination ✅
+      config.py             # PostgresConnectorConfig
+      connector.py          # PostgresConnector (Read/Write)
     duckdb/
       __init__.py
-      destination.py      # DuckDBDestination ✅
+      config.py             # DuckDBConnectorConfig
+      connector.py          # DuckDBConnector (Read/Write)
+    filestore/
+      __init__.py
+      config.py             # FileStore configs (S3, Local, etc.)
+      connector.py          # FileStoreConnector (Read/Write)
+      formats.py            # Format handlers (CSV, JSON, JSONL, Parquet)
   transforms/
     __init__.py           # Registry + exports
     registry.py           # Transform registry
@@ -848,13 +973,44 @@ ARCHITECTURE.md           # This file
 dependencies = [
     "pydantic>=2.0",          # Schema validation
     "pyyaml>=6.0",            # YAML parsing
+]
+
+[project.optional-dependencies]
+postgres = [
     "psycopg2-binary>=2.9",   # Postgres driver
-    "boto3>=1.28",            # S3 discovery/metadata
-    "duckdb>=0.9",            # DuckDB database
-    "pandas>=2.0",            # CSV handling and data manipulation
     "sqlalchemy>=2.0.0",      # Database abstraction
+]
+duckdb = [
+    "duckdb>=0.9",            # DuckDB database
+]
+s3 = [
+    "boto3>=1.28",            # S3 operations
     "fsspec>=2023.1.0",       # Unified filesystem interface
-    "s3fs>=2023.1.0",         # S3 backend for fsspec
+    "s3fs>=2023.1.0",        # S3 backend for fsspec
+]
+parquet = [
+    "pyarrow>=14.0",          # Parquet format support
+    "pandas>=2.0",            # Data manipulation
+]
+sftp = [
+    "paramiko>=3.0",          # SFTP support
+    "fsspec>=2023.1.0",       # Unified filesystem interface
+]
+all = [
+    "psycopg2-binary>=2.9",
+    "sqlalchemy>=2.0.0",
+    "duckdb>=0.9",
+    "boto3>=1.28",
+    "fsspec>=2023.1.0",
+    "s3fs>=2023.1.0",
+    "pyarrow>=14.0",
+    "pandas>=2.0",
+    "paramiko>=3.0",
+]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "moto>=5.0",              # AWS mocking for tests
 ]
 ```
 
@@ -945,7 +1101,8 @@ This architecture enables a powerful, extensible, and high-performance data load
 
 **Implemented Features:**
 - Recipe model layer with inheritance and template rendering
-- Source and destination connectors (Postgres, CSV, S3, DuckDB)
+- Unified connector architecture (PostgresConnector, DuckDBConnector, FileStoreConnector)
+- FileStore connector with multiple backends (S3, local) and formats (CSV, JSON, JSONL, Parquet)
 - Transform pipeline with extensible registry
 - Execution engine with state management
 - Public Python API (`from_yaml`, `run_recipe`, `run_recipe_from_yaml`)
@@ -955,6 +1112,8 @@ This architecture enables a powerful, extensible, and high-performance data load
 - Metrics collection
 - Full CLI interface
 - Comprehensive documentation and example recipes
-- Integration tests for end-to-end scenarios
+- Comprehensive test suite (93+ connector tests passing)
 
-**Next Steps:** v0.3 (Schema Management & Type System) - See roadmap above for detailed feature plans through v0.10.
+**Next Steps:** 
+- v0.2.1 (Optional Dependencies & Integration Tests) - See roadmap above
+- v0.3 (Schema Management & Type System) - See roadmap above for detailed feature plans through v0.10
