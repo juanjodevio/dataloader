@@ -3,9 +3,7 @@
 Uses fsspec for abstraction, supporting S3, local filesystem, Azure, GCS, and other backends.
 """
 
-import csv
 from datetime import datetime
-from io import StringIO
 from pathlib import Path
 from typing import Any, Iterable, Union
 
@@ -20,6 +18,7 @@ from dataloader.models.destination_config import DestinationConfig
 from dataloader.models.source_config import SourceConfig
 
 from .config import FileStoreConfigType, LocalFileStoreConfig, S3FileStoreConfig
+from .formats import Format, get_format
 
 DEFAULT_BATCH_SIZE = 1000
 DEFAULT_ENCODING = "utf-8"
@@ -70,8 +69,15 @@ class FileStoreConnector:
         # Reading configuration
         self._batch_size = self._connection.get("batch_size", DEFAULT_BATCH_SIZE)
         self._encoding = self._connection.get("encoding", DEFAULT_ENCODING)
-        self._delimiter = self._connection.get("delimiter", ",")
-        self._has_header = self._connection.get("has_header", True)
+
+        # Format-specific options (for CSV)
+        format_options = {
+            "delimiter": self._connection.get("delimiter", ","),
+            "has_header": self._connection.get("has_header", True),
+        }
+
+        # Initialize format handler
+        self._format_handler = get_format(self._format, **format_options)
 
         # Writing state
         self._file_initialized = False
@@ -204,69 +210,6 @@ class FileStoreConnector:
 
     # ========== Reading methods ==========
 
-    def _infer_type(self, value: str) -> str:
-        """Infer the type of a string value."""
-        if not value or value.strip() == "":
-            return "string"
-
-        try:
-            int(value)
-            return "int"
-        except ValueError:
-            pass
-
-        try:
-            float(value)
-            return "float"
-        except ValueError:
-            pass
-
-        datetime_formats = [
-            "%Y-%m-%d",
-            "%Y-%m-%d %H:%M:%S",
-            "%Y-%m-%dT%H:%M:%S",
-            "%Y-%m-%dT%H:%M:%SZ",
-        ]
-        for fmt in datetime_formats:
-            try:
-                datetime.strptime(value, fmt)
-                return "datetime"
-            except ValueError:
-                continue
-
-        return "string"
-
-    def _infer_schema(
-        self, columns: list[str], sample_rows: list[list[str]]
-    ) -> dict[str, str]:
-        """Infer column types from sample rows."""
-        if not sample_rows:
-            return {col: "string" for col in columns}
-
-        type_votes: dict[str, dict[str, int]] = {col: {} for col in columns}
-
-        for row in sample_rows:
-            for i, col in enumerate(columns):
-                if i < len(row):
-                    inferred = self._infer_type(row[i])
-                    type_votes[col][inferred] = type_votes[col].get(inferred, 0) + 1
-
-        schema = {}
-        for col in columns:
-            votes = type_votes[col]
-            if not votes:
-                schema[col] = "string"
-                continue
-
-            for preferred_type in ["datetime", "float", "int"]:
-                if votes.get(preferred_type, 0) >= len(sample_rows) * 0.5:
-                    schema[col] = preferred_type
-                    break
-            else:
-                schema[col] = "string"
-
-        return schema
-
     def _list_files(self) -> list[dict[str, Any]]:
         """List files in the configured path using fsspec."""
         fs = self._get_filesystem()
@@ -276,13 +219,11 @@ class FileStoreConnector:
             # For directories, list all files
             if fs.isdir(file_url):
                 files = []
+                # Get valid extensions for this format
+                valid_extensions = self._format_handler.extensions
                 for file_path in fs.find(file_url):
                     # Filter by format extension
-                    if self._format == "csv" and file_path.endswith(".csv"):
-                        files.append({"path": file_path, "name": Path(file_path).name})
-                    elif self._format == "parquet" and file_path.endswith(".parquet"):
-                        files.append({"path": file_path, "name": Path(file_path).name})
-                    elif self._format == "jsonl" and file_path.endswith(".jsonl"):
+                    if any(file_path.lower().endswith(ext.lower()) for ext in valid_extensions):
                         files.append({"path": file_path, "name": Path(file_path).name})
                 return files
             else:
@@ -333,57 +274,12 @@ class FileStoreConnector:
 
         return filtered
 
-    def _read_csv_batches(
-        self, content: str, file_path: str, file_metadata: dict[str, Any] | None = None
-    ) -> Iterable[DictBatch]:
-        """Read batches from CSV content string."""
-        reader = csv.reader(StringIO(content), delimiter=self._delimiter)
-        rows_buffer: list[list[str]] = []
-
-        if self._has_header:
-            try:
-                columns = next(reader)
-            except StopIteration:
-                return  # Empty file
-        else:
-            first_row = next(reader, None)
-            if first_row is None:
-                return
-            columns = [f"col_{i}" for i in range(len(first_row))]
-            rows_buffer.append(first_row)
-
-        # Read all rows into buffer
-        for row in reader:
-            rows_buffer.append(row)
-
-        # Infer schema from first 100 rows
-        schema_sample = rows_buffer[: min(100, len(rows_buffer))]
-        column_types = self._infer_schema(columns, schema_sample)
-
-        # Yield in batches
-        batch_number = 0
-        for i in range(0, len(rows_buffer), self._batch_size):
-            batch_rows = rows_buffer[i : i + self._batch_size]
-            batch_number += 1
-
-            yield DictBatch(
-                columns=columns,
-                rows=batch_rows,
-                metadata={
-                    "batch_number": batch_number,
-                    "row_count": len(batch_rows),
-                    "source_type": "filestore",
-                    "backend": self._backend,
-                    "file_path": file_path,
-                    "format": self._format,
-                    "column_types": column_types,
-                },
-            )
 
     def read_batches(self, state: State) -> Iterable[DictBatch]:
         """Read files from FileStore as batches.
 
-        Uses fsspec for unified file operations across all backends.
+        Uses fsspec for unified file operations across all backends and format handlers
+        for reading different file formats.
 
         Args:
             state: Current state containing cursor values for incremental reads.
@@ -395,11 +291,6 @@ class FileStoreConnector:
             NotImplementedError: If reading is not supported (should not happen for FileStore).
             ConnectorError: If file operations fail.
         """
-        if self._format != "csv":
-            raise NotImplementedError(
-                f"Format '{self._format}' is not yet supported. Only 'csv' is supported in v0.1."
-            )
-
         try:
             # List files
             files = self._list_files()
@@ -408,20 +299,32 @@ class FileStoreConnector:
             # Sort by path for consistent processing order
             files.sort(key=lambda x: x["path"])
 
-            # Read each file
+            # Read each file using format handler
             fs = self._get_filesystem()
             for file_info in files:
                 file_path = file_info["path"]
 
                 try:
                     # Read file using fsspec
-                    with fs.open(file_path, mode="r", encoding=self._encoding) as f:
-                        content = f.read()
-                    yield from self._read_csv_batches(content, file_path, file_info)
+                    # For binary formats (parquet), read as bytes; for text formats, read as string
+                    if self._format == "parquet":
+                        with fs.open(file_path, mode="rb") as f:
+                            content = f.read()
+                    else:
+                        with fs.open(file_path, mode="r", encoding=self._encoding) as f:
+                            content = f.read()
+
+                    # Use format handler to read batches
+                    yield from self._format_handler.read_batches(
+                        content,
+                        file_path,
+                        batch_size=self._batch_size,
+                        encoding=self._encoding,
+                    )
                 except Exception as e:
                     raise ConnectorError(
                         f"Failed to read file: {e}",
-                        context={"path": file_path, "backend": self._backend},
+                        context={"path": file_path, "backend": self._backend, "format": self._format},
                     ) from e
 
         except ConnectorError:
@@ -429,7 +332,7 @@ class FileStoreConnector:
         except Exception as e:
             raise ConnectorError(
                 f"Unexpected error reading from FileStore: {e}",
-                context={"path": self._path, "backend": self._backend},
+                context={"path": self._path, "backend": self._backend, "format": self._format},
             ) from e
 
     # ========== Writing methods ==========
@@ -439,15 +342,8 @@ class FileStoreConnector:
         timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
         self._batch_counter += 1
 
-        # Build filename based on format
-        if self._format == "csv":
-            ext = ".csv"
-        elif self._format == "parquet":
-            ext = ".parquet"
-        elif self._format == "jsonl":
-            ext = ".jsonl"
-        else:
-            ext = ".csv"  # Default
+        # Get extension from format handler (use first extension)
+        ext = self._format_handler.extensions[0] if self._format_handler.extensions else ".dat"
 
         filename = f"data_{timestamp}_{self._batch_counter:04d}{ext}"
 
@@ -457,15 +353,6 @@ class FileStoreConnector:
             return f"{base_path}/{filename}"
         return filename
 
-    def _batch_to_csv(self, batch: Batch) -> str:
-        """Convert batch to CSV string."""
-        output = StringIO()
-        writer = csv.writer(output, delimiter=self._delimiter)
-        if self._has_header:
-            writer.writerow(batch.columns)
-        writer.writerows(batch.rows)
-        return output.getvalue()
-
     def _delete_existing_files(self) -> None:
         """Delete existing files at the destination path (for overwrite mode)."""
         fs = self._get_filesystem()
@@ -473,9 +360,10 @@ class FileStoreConnector:
 
         try:
             if fs.isdir(file_url):
-                # List and delete all files matching the format
+                # List and delete all files matching the format extensions
+                valid_extensions = self._format_handler.extensions
                 for file_path in fs.find(file_url):
-                    if file_path.endswith(f".{self._format}"):
+                    if any(file_path.lower().endswith(ext.lower()) for ext in valid_extensions):
                         fs.rm(file_path)
             elif fs.exists(file_url):
                 # Single file, delete it
@@ -487,7 +375,7 @@ class FileStoreConnector:
             ) from e
 
     def write_batch(self, batch: Batch, state: State) -> None:
-        """Write a batch to FileStore.
+        """Write a batch to FileStore using the configured format handler.
 
         Args:
             batch: Batch of data to write.
@@ -497,11 +385,6 @@ class FileStoreConnector:
             NotImplementedError: If writing is not supported (should not happen for FileStore).
             ConnectorError: If file operations fail.
         """
-        if self._format != "csv":
-            raise NotImplementedError(
-                f"Format '{self._format}' is not yet supported for writing. Only 'csv' is supported in v0.1."
-            )
-
         if self._write_mode == "merge":
             raise ConnectorError(
                 "Merge write mode is not supported for FileStore in v0.1. Use 'append' or 'overwrite'.",
@@ -515,21 +398,21 @@ class FileStoreConnector:
         if not batch.rows:
             return
 
-        # Generate file path and convert to CSV
+        # Generate file path and convert to format using format handler
         file_path = self._generate_file_path(batch)
         file_url = self._build_file_url(file_path)
-        csv_content = self._batch_to_csv(batch)
+        file_content = self._format_handler.write_batch(batch, encoding=self._encoding)
 
-        # Write using fsspec
+        # Write using fsspec (always binary mode since format handler returns bytes)
         fs = self._get_filesystem()
         try:
             with fs.open(file_url, mode="wb") as f:
-                f.write(csv_content.encode(self._encoding))
+                f.write(file_content)
             self._written_files.append(file_url)
         except Exception as e:
             raise ConnectorError(
                 f"Failed to write file: {e}",
-                context={"path": file_url, "backend": self._backend},
+                context={"path": file_url, "backend": self._backend, "format": self._format},
             ) from e
 
     @property

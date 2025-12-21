@@ -10,6 +10,16 @@ from dataloader.connectors.filestore.connector import (
     FileStoreConnector,
     create_filestore_connector,
 )
+from dataloader.connectors.filestore.formats import (
+    CSVFormat,
+    Format,
+    JSONFormat,
+    JSONLFormat,
+    ParquetFormat,
+    get_format,
+    list_formats,
+    register_format,
+)
 
 __all__ = [
     "FileStoreConnector",
@@ -18,5 +28,14 @@ __all__ = [
     "S3FileStoreConfig",
     "LocalFileStoreConfig",
     "create_filestore_connector",
+    # Format handlers
+    "Format",
+    "CSVFormat",
+    "JSONFormat",
+    "JSONLFormat",
+    "ParquetFormat",
+    "get_format",
+    "list_formats",
+    "register_format",
 ]
 

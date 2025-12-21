@@ -33,7 +33,7 @@ class FileStoreConnectorConfig(BaseModel):
     )
 
     # Format configuration
-    format: Literal["csv", "parquet", "jsonl"] = Field(
+    format: Literal["csv", "json", "jsonl", "parquet"] = Field(
         default="csv", description="File format to read/write"
     )
 
