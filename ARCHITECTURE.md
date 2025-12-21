@@ -208,6 +208,10 @@ The `FileStoreConnector` provides a unified interface for file-based storage:
 - **Format Handlers**: Pluggable format system using `Format` ABC
 - **Custom Formats**: Users can register custom format handlers via `@register_format` decorator
 
+**Cross-Platform Path Handling:**
+
+The FileStore connector ensures cross-platform compatibility by converting `pathlib.Path` objects to strings before passing them to fsspec operations. This is critical on Windows where `WindowsPath` objects must be explicitly converted to strings for filesystem operations. The connector handles this conversion internally, so users can safely use either string paths or `pathlib.Path` objects in recipe configurations.
+
 ### 5.3 Transform Pipeline ✅ Implemented
 
 Sequential pipeline executor that applies transform steps to batches.
@@ -467,7 +471,7 @@ dataloader list-connectors
 - [x] Example recipes ✅
 - [x] Documentation (README.md) ✅
 - [x] Integration tests ✅
-- [x] Comprehensive test suite (93+ connector tests passing)
+- [x] Comprehensive test suite (219+ tests passing, including Windows compatibility tests)
 
 ### v0.2 – Reliable MVP ✅ Complete
 
@@ -1049,6 +1053,9 @@ Unspecified keys are inherited.
 **Lists → behavior depends:**
 
 - Transform steps → concatenated (parent first, then child)
+  - Parent recipe transform steps are executed first, followed by child recipe transform steps
+  - If both parent and child add columns with the same name, the second step will fail (column already exists)
+  - Best practice: Use different column names in parent and child recipes, or use child recipes to override parent behavior by deleting and redefining transform steps
 - Other lists → overridden
 
 **Delete semantics** ✅ Implemented
@@ -1112,7 +1119,7 @@ This architecture enables a powerful, extensible, and high-performance data load
 - Metrics collection
 - Full CLI interface
 - Comprehensive documentation and example recipes
-- Comprehensive test suite (93+ connector tests passing)
+- Comprehensive test suite (219+ tests passing, including Windows compatibility tests)
 
 **Next Steps:** 
 - v0.2.1 (Optional Dependencies & Integration Tests) - See roadmap above
