@@ -2,24 +2,19 @@
 
 import click
 
-from dataloader.connectors import list_destination_types, list_source_types
+from dataloader.connectors import list_connector_types
 
 
 @click.command("list-connectors")
 def list_connectors():
-    """List available source and destination connectors.
+    """List available connectors.
     
-    Shows all registered connector types and their capabilities.
+    Shows all registered connector types. Connectors can support
+    reading, writing, or both operations.
     """
-    source_types = list_source_types()
-    destination_types = list_destination_types()
+    connector_types = list_connector_types()
     
-    click.echo("Available Source Connectors:")
-    for source_type in sorted(source_types):
-        click.echo(f"  - {source_type}")
-    
-    click.echo("")
-    click.echo("Available Destination Connectors:")
-    for dest_type in sorted(destination_types):
-        click.echo(f"  - {dest_type}")
+    click.echo("Available Connectors:")
+    for connector_type in sorted(connector_types):
+        click.echo(f"  - {connector_type}")
 

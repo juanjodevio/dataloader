@@ -35,20 +35,16 @@ class FileStoreConnector:
     def __init__(
         self,
         config: Union[FileStoreConfigType, SourceConfig, DestinationConfig],
-        connection: dict[str, Any] | None = None,
     ):
         """Initialize FileStoreConnector.
 
         Args:
             config: FileStore connector configuration (FileStoreConfigType, SourceConfig, or DestinationConfig).
-            connection: Optional connection parameters (legacy, defaults to empty dict).
-                All configuration should be in the config parameter. This parameter is kept
-                for backward compatibility with the factory signature.
+                All configuration, including connection parameters, should be in the config parameter.
         """
         self._config = config
-        self._connection = connection or {}
 
-        # Extract config values (support both new and legacy configs)
+        # Extract config values
         if isinstance(config, (S3FileStoreConfig, LocalFileStoreConfig)):
             self._backend = getattr(config, "backend", "local")
             self._path = config.path
@@ -66,14 +62,14 @@ class FileStoreConnector:
             self._format = "csv"  # Default format
             self._write_mode = config.write_mode
 
-        # Reading configuration
-        self._batch_size = self._connection.get("batch_size", DEFAULT_BATCH_SIZE)
-        self._encoding = self._connection.get("encoding", DEFAULT_ENCODING)
+        # Reading configuration (using defaults)
+        self._batch_size = DEFAULT_BATCH_SIZE
+        self._encoding = DEFAULT_ENCODING
 
-        # Format-specific options (for CSV)
+        # Format-specific options (for CSV, using defaults)
         format_options = {
-            "delimiter": self._connection.get("delimiter", ","),
-            "has_header": self._connection.get("has_header", True),
+            "delimiter": ",",
+            "has_header": True,
         }
 
         # Initialize format handler
@@ -85,7 +81,7 @@ class FileStoreConnector:
         self._written_files: list[str] = []
 
         # Build fsspec storage options
-        self._storage_options = self._build_storage_options(config, self._connection)
+        self._storage_options = self._build_storage_options(config, None)
         self._filesystem: AbstractFileSystem | None = None
 
     def _infer_backend_from_config(
@@ -170,7 +166,6 @@ class FileStoreConnector:
                 return file_path
             else:
                 # Try to infer bucket from path or config
-                # For legacy SourceConfig/DestinationConfig with bucket field
                 bucket = getattr(self._config, "bucket", None) or ""
                 if bucket:
                     key = file_path.lstrip("/")
@@ -423,8 +418,8 @@ class FileStoreConnector:
 
 @register_connector("filestore")
 def create_filestore_connector(
-    config: ConnectorConfigUnion, connection: dict[str, Any] | None = None
+    config: ConnectorConfigUnion,
 ) -> FileStoreConnector:
     """Factory function for creating FileStoreConnector instances."""
-    return FileStoreConnector(config, connection)
+    return FileStoreConnector(config)
 

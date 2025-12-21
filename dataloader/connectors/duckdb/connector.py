@@ -38,20 +38,16 @@ class DuckDBConnector:
     def __init__(
         self,
         config: Union[DuckDBConnectorConfig, SourceConfig, DestinationConfig],
-        connection: dict[str, Any] | None = None,
     ):
         """Initialize DuckDBConnector.
 
         Args:
             config: DuckDB connector configuration (DuckDBConnectorConfig, SourceConfig, or DestinationConfig).
-            connection: Optional connection parameters (legacy, defaults to empty dict).
-                All configuration should be in the config parameter. This parameter is kept
-                for backward compatibility with the factory signature.
+                All configuration, including connection parameters, should be in the config parameter.
         """
         self._config = config
-        self._connection = connection or {}
 
-        # Extract config values (support both new and legacy configs)
+        # Extract config values
         if isinstance(config, DuckDBConnectorConfig):
             self._database = config.database
             self._table = config.table
@@ -65,13 +61,13 @@ class DuckDBConnector:
             self._write_mode = "append"  # Default for source configs
             self._merge_keys = None
         else:  # DestinationConfig
-            self._database = connection.get("database") or config.database or ":memory:"
+            self._database = config.database or ":memory:"
             self._table = config.table or ""
             self._schema = config.db_schema
             self._write_mode = config.write_mode
             self._merge_keys = config.merge_keys
 
-        self._batch_size = self._connection.get("batch_size", DEFAULT_BATCH_SIZE)
+        self._batch_size = DEFAULT_BATCH_SIZE
         self._conn: DuckDBPyConnection | None = None
         self._table_created = False
 
@@ -369,8 +365,8 @@ class DuckDBConnector:
 
 @register_connector("duckdb")
 def create_duckdb_connector(
-    config: ConnectorConfigUnion, connection: dict[str, Any] | None = None
+    config: ConnectorConfigUnion,
 ) -> DuckDBConnector:
     """Factory function for creating DuckDBConnector instances."""
-    return DuckDBConnector(config, connection)
+    return DuckDBConnector(config)
 

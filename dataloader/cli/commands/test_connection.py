@@ -46,8 +46,8 @@ def test_connection(recipe_path: str, vars: tuple):
         # Test source connection
         click.echo(f"Testing source connection ({recipe.source.type})...")
         try:
-            from dataloader.connectors import get_source
-            source = get_source(recipe.source.type, recipe.source, {})
+            from dataloader.connectors import get_connector
+            source = get_connector(recipe.source.type, recipe.source)
             # Try to read a small batch to verify connection
             from dataloader.core.state import State
             state = State()
@@ -60,8 +60,8 @@ def test_connection(recipe_path: str, vars: tuple):
         # Test destination connection
         click.echo(f"Testing destination connection ({recipe.destination.type})...")
         try:
-            from dataloader.connectors import get_destination
-            destination = get_destination(recipe.destination.type, recipe.destination, {})
+            from dataloader.connectors import get_connector
+            destination = get_connector(recipe.destination.type, recipe.destination)
             # For most destinations, creation is enough to verify connection
             click.echo("✓ Destination connection successful")
         except Exception as e:

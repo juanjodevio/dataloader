@@ -257,9 +257,8 @@ def _get_connector(config: SourceConfig | DestinationConfig) -> Any:
     """
     try:
         # All connection parameters come from the config
-        # Connectors expect None for connection since config has all values
         # The unified registry handles both source and destination configs
-        return get_connector(config.type, config, None)
+        return get_connector(config.type, config)
     except Exception as e:
         config_type = "source" if isinstance(config, SourceConfig) else "destination"
         raise EngineError(

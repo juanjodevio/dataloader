@@ -31,20 +31,16 @@ class PostgresConnector:
     def __init__(
         self,
         config: Union[PostgresConnectorConfig, SourceConfig, DestinationConfig],
-        connection: dict[str, Any] | None = None,
     ):
         """Initialize PostgresConnector.
 
         Args:
             config: PostgreSQL connector configuration (PostgresConnectorConfig, SourceConfig, or DestinationConfig).
-            connection: Optional connection parameters (legacy, defaults to empty dict).
-                All configuration should be in the config parameter. This parameter is kept
-                for backward compatibility with the factory signature.
+                All configuration, including connection parameters, should be in the config parameter.
         """
         self._config = config
-        self._connection = connection or {}
 
-        # Extract config values (support both new and legacy configs)
+        # Extract config values
         if isinstance(config, PostgresConnectorConfig):
             self._host = config.host
             self._port = config.port or self.DEFAULT_PORT
@@ -76,14 +72,14 @@ class PostgresConnector:
             self._write_mode = config.write_mode
             self._merge_keys = config.merge_keys
 
-        self._batch_size = self._connection.get("batch_size", self.DEFAULT_BATCH_SIZE)
+        self._batch_size = self.DEFAULT_BATCH_SIZE
         self._engine: Engine | None = None
         self._table_created = False
 
     def _build_connection_url(self) -> str:
         """Build SQLAlchemy connection URL from config."""
-        # Use custom dialect if specified (e.g., for Redshift, MySQL)
-        dialect = self._connection.get("dialect", self.DIALECT)
+        # Use default dialect (can be extended in future to support other databases)
+        dialect = self.DIALECT
 
         # Build URL: dialect://user:password@host:port/database
         if self._password:
@@ -401,8 +397,8 @@ class PostgresConnector:
 
 @register_connector("postgres")
 def create_postgres_connector(
-    config: ConnectorConfigUnion, connection: dict[str, Any] | None = None
+    config: ConnectorConfigUnion,
 ) -> PostgresConnector:
     """Factory function for creating PostgresConnector instances."""
-    return PostgresConnector(config, connection)
+    return PostgresConnector(config)
 

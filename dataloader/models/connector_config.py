@@ -8,7 +8,6 @@ implementation for better cohesion and maintainability.
 from typing import Protocol, Union
 
 # Import connector-specific configs from their respective modules
-from dataloader.connectors.csv.config import CSVConnectorConfig
 from dataloader.connectors.duckdb.config import DuckDBConnectorConfig
 from dataloader.connectors.filestore.config import (
     FileStoreConfigType,
@@ -16,7 +15,6 @@ from dataloader.connectors.filestore.config import (
     S3FileStoreConfig,
 )
 from dataloader.connectors.postgres.config import PostgresConnectorConfig
-from dataloader.connectors.s3.config import S3ConnectorConfig
 
 
 class ConnectorConfig(Protocol):
@@ -33,8 +31,6 @@ class ConnectorConfig(Protocol):
 # This is used by the registry and recipe loading
 ConnectorConfigType = Union[
     PostgresConnectorConfig,
-    S3ConnectorConfig,
-    CSVConnectorConfig,
     DuckDBConnectorConfig,
     FileStoreConfigType,  # Includes S3FileStoreConfig, LocalFileStoreConfig
 ]
@@ -44,8 +40,6 @@ __all__ = [
     "ConnectorConfig",
     "ConnectorConfigType",
     "PostgresConnectorConfig",
-    "S3ConnectorConfig",
-    "CSVConnectorConfig",
     "DuckDBConnectorConfig",
     "FileStoreConfigType",
     "S3FileStoreConfig",

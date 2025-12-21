@@ -68,9 +68,9 @@ def dry_run(recipe_path: str, vars: tuple, log_level: str, json_logs: bool):
         
         # Test source connection and count batches
         click.echo("Testing source connection...")
-        from dataloader.connectors import get_source
+        from dataloader.connectors import get_connector
         from dataloader.core.state import State
-        source = get_source(recipe.source.type, recipe.source, {})
+        source = get_connector(recipe.source.type, recipe.source)
         state = State()
         batches = list(source.read_batches(state))
         click.echo(f"✓ Source connection successful")
@@ -82,8 +82,8 @@ def dry_run(recipe_path: str, vars: tuple, log_level: str, json_logs: bool):
         
         # Test destination connection
         click.echo("Testing destination connection...")
-        from dataloader.connectors import get_destination
-        destination = get_destination(recipe.destination.type, recipe.destination, {})
+        from dataloader.connectors import get_connector
+        destination = get_connector(recipe.destination.type, recipe.destination)
         click.echo("✓ Destination connection successful")
         click.echo("")
         
