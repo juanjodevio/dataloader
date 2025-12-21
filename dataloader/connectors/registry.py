@@ -5,19 +5,23 @@ allowing dynamic registration and retrieval of connector factories.
 Connectors can implement read and/or write operations.
 """
 
-from typing import Callable, Union, overload
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Callable, Union, overload
 
 from dataloader.connectors.base import Connector
-from dataloader.connectors.duckdb.config import DuckDBConnectorConfig
-from dataloader.connectors.postgres.config import PostgresConnectorConfig
 from dataloader.core.exceptions import ConnectorError
-from dataloader.models.connector_config import ConnectorConfig, ConnectorConfigType
 from dataloader.models.destination_config import DestinationConfig
 from dataloader.models.source_config import SourceConfig
 
+if TYPE_CHECKING:
+    from dataloader.models.connector_config import ConnectorConfigType
+
 # Type aliases for factory signatures
+# Using __future__.annotations makes all annotations strings, avoiding circular imports
+# We use string literal for ConnectorConfigType to avoid importing it at runtime
 ConnectorConfigUnion = Union[
-    ConnectorConfigType,
+    "ConnectorConfigType",  # Forward reference - only resolved at type-checking time
     SourceConfig,
     DestinationConfig,
 ]

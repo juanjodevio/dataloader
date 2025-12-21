@@ -32,8 +32,10 @@ class TestEndToEndPipelines:
 name: csv_to_duckdb
 
 source:
-  type: csv
-  path: "{csv_path}"
+  type: filestore
+  backend: local
+  format: csv
+  path: {csv_path!r}
 
 transform:
   steps:
@@ -43,7 +45,7 @@ transform:
 
 destination:
   type: duckdb
-  database: "{temp_dir / 'output.duckdb'}"
+  database: {str(temp_dir / 'output.duckdb')!r}
   table: test_table
   write_mode: overwrite
 """
@@ -79,8 +81,10 @@ destination:
 name: csv_transform
 
 source:
-  type: csv
-  path: "{csv_path}"
+  type: filestore
+  backend: local
+  format: csv
+  path: {csv_path!r}
 
 transform:
   steps:
@@ -91,7 +95,7 @@ transform:
 
 destination:
   type: duckdb
-  database: "{temp_dir / 'output.duckdb'}"
+  database: {str(temp_dir / 'output.duckdb')!r}
   table: test_table
   write_mode: overwrite
 """
@@ -143,8 +147,10 @@ name: child_recipe
 extends: base.yaml
 
 source:
-  type: csv
-  path: "{csv_path}"
+  type: filestore
+  backend: local
+  format: csv
+  path: {csv_path!r}
 
 transform:
   steps:
@@ -154,7 +160,7 @@ transform:
 
 destination:
   type: duckdb
-  database: "{temp_dir / 'output.duckdb'}"
+  database: {str(temp_dir / 'output.duckdb')!r}
   table: test_table
   write_mode: overwrite
 """
@@ -192,15 +198,17 @@ destination:
 name: incremental_test
 
 source:
-  type: csv
-  path: "{csv_path}"
+  type: filestore
+  backend: local
+  format: csv
+  path: {csv_path!r}
   incremental:
     strategy: cursor
     cursor_column: updated_at
 
 destination:
   type: duckdb
-  database: "{temp_dir / 'output.duckdb'}"
+  database: {str(temp_dir / 'output.duckdb')!r}
   table: test_table
   write_mode: append
 """
@@ -245,8 +253,10 @@ destination:
 name: example_recipe
 
 source:
-  type: csv
-  path: "{csv_path}"
+  type: filestore
+  backend: local
+  format: csv
+  path: {csv_path!r}
 
 transform:
   steps: []
@@ -282,7 +292,9 @@ runtime:
 name: api_test
 
 source:
-  type: csv
+  type: filestore
+  backend: local
+  format: csv
   path: "/tmp/test.csv"
 
 destination:
@@ -311,8 +323,10 @@ destination:
 name: api_run_test
 
 source:
-  type: csv
-  path: "{csv_path}"
+  type: filestore
+  backend: local
+  format: csv
+  path: {csv_path!r}
 
 destination:
   type: duckdb
@@ -347,8 +361,10 @@ destination:
 name: state_test
 
 source:
-  type: csv
-  path: "{csv_path}"
+  type: filestore
+  backend: local
+  format: csv
+  path: {csv_path!r}
 
 destination:
   type: duckdb

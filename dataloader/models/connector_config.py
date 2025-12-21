@@ -5,16 +5,18 @@ configuration classes. Each connector config is co-located with its connector
 implementation for better cohesion and maintainability.
 """
 
-from typing import Protocol, Union
+from typing import TYPE_CHECKING, Protocol, Union
 
-# Import connector-specific configs from their respective modules
-from dataloader.connectors.duckdb.config import DuckDBConnectorConfig
-from dataloader.connectors.filestore.config import (
-    FileStoreConfigType,
-    LocalFileStoreConfig,
-    S3FileStoreConfig,
-)
-from dataloader.connectors.postgres.config import PostgresConnectorConfig
+if TYPE_CHECKING:
+    from dataloader.connectors.duckdb.config import DuckDBConnectorConfig
+    from dataloader.connectors.filestore.config import (
+        FileStoreConfigType,
+        LocalFileStoreConfig,
+        S3FileStoreConfig,
+    )
+    from dataloader.connectors.postgres.config import PostgresConnectorConfig
+    from dataloader.models.destination_config import DestinationConfig
+    from dataloader.models.source_config import SourceConfig
 
 
 class ConnectorConfig(Protocol):
@@ -27,6 +29,16 @@ class ConnectorConfig(Protocol):
     type: str
 
 
+# Import connector-specific configs from their respective modules
+# These imports are safe because config modules don't import connectors
+from dataloader.connectors.duckdb.config import DuckDBConnectorConfig
+from dataloader.connectors.filestore.config import (
+    FileStoreConfigType,
+    LocalFileStoreConfig,
+    S3FileStoreConfig,
+)
+from dataloader.connectors.postgres.config import PostgresConnectorConfig
+
 # Union type for all connector configs
 # This is used by the registry and recipe loading
 ConnectorConfigType = Union[
@@ -35,10 +47,14 @@ ConnectorConfigType = Union[
     FileStoreConfigType,  # Includes S3FileStoreConfig, LocalFileStoreConfig
 ]
 
+# Re-export ConnectorConfigUnion from registry for convenience
+from dataloader.connectors.registry import ConnectorConfigUnion
+
 # Re-export all config classes for convenience
 __all__ = [
     "ConnectorConfig",
     "ConnectorConfigType",
+    "ConnectorConfigUnion",
     "PostgresConnectorConfig",
     "DuckDBConnectorConfig",
     "FileStoreConfigType",
