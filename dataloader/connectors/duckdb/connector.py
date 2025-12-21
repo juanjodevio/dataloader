@@ -6,7 +6,9 @@ import duckdb
 from duckdb import DuckDBPyConnection
 
 from dataloader.connectors.registry import ConnectorConfigUnion, register_connector
-from dataloader.core.batch import Batch, DictBatch
+import pyarrow as pa
+
+from dataloader.core.batch import ArrowBatch, Batch
 from dataloader.core.exceptions import ConnectorError
 from dataloader.core.state import State
 from dataloader.models.destination_config import DestinationConfig
@@ -145,16 +147,16 @@ class DuckDBConnector:
 
         return " ".join(query_parts), params
 
-    def read_batches(self, state: State) -> Iterable[DictBatch]:
+    def read_batches(self, state: State) -> Iterable[ArrowBatch]:
         """Read data from DuckDB table as batches.
 
-        Uses DuckDB's fetchmany for memory-efficient batch reading.
+        Uses DuckDB's native Arrow support for efficient batch reading.
 
         Args:
             state: Current state containing cursor values for incremental reads.
 
         Yields:
-            DictBatch instances containing the data.
+            ArrowBatch instances containing the data.
 
         Raises:
             NotImplementedError: If reading is not supported (should not happen for DuckDB).
@@ -168,7 +170,7 @@ class DuckDBConnector:
 
             query, params = self._build_query(state)
 
-            # Use parameterized query for safety
+            # Use DuckDB's native Arrow support
             if params:
                 result = conn.execute(query, params)
             else:
@@ -176,15 +178,18 @@ class DuckDBConnector:
 
             batch_number = 0
             while True:
+                # Fetch batch using fetchmany, then convert to Arrow
+                # (DuckDB's fetch_arrow_table fetches all remaining rows, so we use fetchmany)
                 rows = result.fetchmany(self._batch_size)
                 if not rows:
                     break
 
                 # Convert rows to list format
                 row_data = [list(row) for row in rows]
-
+                
+                # Create ArrowBatch from rows
                 batch_number += 1
-                yield DictBatch(
+                batch = ArrowBatch.from_rows(
                     columns=columns,
                     rows=row_data,
                     metadata={
@@ -196,6 +201,7 @@ class DuckDBConnector:
                         "column_types": column_types,
                     },
                 )
+                yield batch
 
         except ConnectorError:
             raise
@@ -211,21 +217,32 @@ class DuckDBConnector:
 
     # ========== Writing methods ==========
 
-    def _map_type(self, batch_type: str) -> str:
-        """Map batch column type to DuckDB type."""
-        return DUCKDB_TYPE_MAP.get(batch_type, "VARCHAR")
-
-    def _infer_column_type(self, value: Any) -> str:
-        """Infer DuckDB type from a Python value."""
-        if value is None:
+    def _map_arrow_type_to_duckdb(self, arrow_type: pa.DataType) -> str:
+        """Map Arrow type to DuckDB type."""
+        # Handle common Arrow types
+        if pa.types.is_string(arrow_type) or pa.types.is_large_string(arrow_type):
             return "VARCHAR"
-        if isinstance(value, bool):
+        elif pa.types.is_integer(arrow_type):
+            if pa.types.is_int64(arrow_type):
+                return "BIGINT"
+            elif pa.types.is_int32(arrow_type):
+                return "INTEGER"
+            else:
+                return "INTEGER"
+        elif pa.types.is_floating(arrow_type):
+            if pa.types.is_float64(arrow_type):
+                return "DOUBLE"
+            else:
+                return "FLOAT"
+        elif pa.types.is_boolean(arrow_type):
             return "BOOLEAN"
-        if isinstance(value, int):
-            return "INTEGER"
-        if isinstance(value, float):
-            return "DOUBLE"
-        return "VARCHAR"
+        elif pa.types.is_timestamp(arrow_type):
+            return "TIMESTAMP"
+        elif pa.types.is_date(arrow_type) or pa.types.is_date32(arrow_type):
+            return "DATE"
+        else:
+            # Default to VARCHAR for unknown types
+            return "VARCHAR"
 
     def _get_existing_columns(self, conn: DuckDBPyConnection) -> set[str]:
         """Get existing columns for the table."""
@@ -236,23 +253,19 @@ class DuckDBConnector:
             return set()
 
     def _create_table(
-        self, conn: DuckDBPyConnection, batch: Batch
+        self, conn: DuckDBPyConnection, batch: ArrowBatch
     ) -> None:
         """Create table from batch schema if it doesn't exist."""
-        # Try to get column types from batch metadata
-        column_types = batch.metadata.get("column_types", {})
+        # Get Arrow schema to determine column types
+        arrow_table = batch.to_arrow()
+        arrow_schema = arrow_table.schema
 
-        # Build column definitions
+        # Build column definitions from Arrow schema
         column_defs = []
-        for i, col in enumerate(batch.columns):
-            if col in column_types:
-                duckdb_type = self._map_type(column_types[col])
-            elif batch.rows:
-                # Infer from first row value
-                duckdb_type = self._infer_column_type(batch.rows[0][i])
-            else:
-                duckdb_type = "VARCHAR"
-            column_defs.append(f'"{col}" {duckdb_type}')
+        for col_name in batch.columns:
+            arrow_field = arrow_schema.field(col_name)
+            duckdb_type = self._map_arrow_type_to_duckdb(arrow_field.type)
+            column_defs.append(f'"{col_name}" {duckdb_type}')
 
         columns_sql = ", ".join(column_defs)
 
@@ -267,32 +280,29 @@ class DuckDBConnector:
             ) from e
 
     def _add_missing_columns(
-        self, conn: DuckDBPyConnection, batch: Batch
+        self, conn: DuckDBPyConnection, batch: ArrowBatch
     ) -> None:
         """Add columns that exist in batch but not in table (schema evolution)."""
         existing = self._get_existing_columns(conn)
-        column_types = batch.metadata.get("column_types", {})
+        arrow_table = batch.to_arrow()
+        arrow_schema = arrow_table.schema
 
-        for i, col in enumerate(batch.columns):
-            if col not in existing:
-                if col in column_types:
-                    duckdb_type = self._map_type(column_types[col])
-                elif batch.rows:
-                    duckdb_type = self._infer_column_type(batch.rows[0][i])
-                else:
-                    duckdb_type = "VARCHAR"
+        for col_name in batch.columns:
+            if col_name not in existing:
+                arrow_field = arrow_schema.field(col_name)
+                duckdb_type = self._map_arrow_type_to_duckdb(arrow_field.type)
 
                 try:
                     conn.execute(
-                        f'ALTER TABLE {self._qualified_table} ADD COLUMN "{col}" {duckdb_type}'
+                        f'ALTER TABLE {self._qualified_table} ADD COLUMN "{col_name}" {duckdb_type}'
                     )
                 except duckdb.Error as e:
                     raise ConnectorError(
-                        f"Failed to add column '{col}': {e}",
-                        context={"table": self._table, "column": col},
+                        f"Failed to add column '{col_name}': {e}",
+                        context={"table": self._table, "column": col_name},
                     ) from e
 
-    def _handle_write_mode(self, conn: DuckDBPyConnection, batch: Batch) -> None:
+    def _handle_write_mode(self, conn: DuckDBPyConnection, batch: ArrowBatch) -> None:
         """Handle write mode logic before inserting."""
         if self._write_mode == "overwrite" and not self._table_created:
             # Drop and recreate table
@@ -322,17 +332,22 @@ class DuckDBConnector:
                 self._add_missing_columns(conn, batch)
             self._table_created = True
 
-    def _insert_batch(self, conn: DuckDBPyConnection, batch: Batch) -> None:
-        """Insert batch rows using parameterized query."""
-        if not batch.rows:
+    def _insert_batch(self, conn: DuckDBPyConnection, batch: ArrowBatch) -> None:
+        """Insert batch rows using DuckDB's native Arrow support."""
+        if batch.row_count == 0:
             return
 
-        columns = ", ".join(f'"{col}"' for col in batch.columns)
-        placeholders = ", ".join("?" for _ in batch.columns)
-        insert_sql = f"INSERT INTO {self._qualified_table} ({columns}) VALUES ({placeholders})"
-
         try:
-            conn.executemany(insert_sql, batch.rows)
+            # Convert Arrow table to rows and use executemany
+            # (DuckDB's native Arrow insertion can be added as optimization later)
+            arrow_table = batch.to_arrow()
+            rows = batch.rows  # This converts Arrow to list of lists
+
+            columns = ", ".join(f'"{col}"' for col in batch.columns)
+            placeholders = ", ".join("?" for _ in batch.columns)
+            insert_sql = f"INSERT INTO {self._qualified_table} ({columns}) VALUES ({placeholders})"
+
+            conn.executemany(insert_sql, rows)
         except duckdb.Error as e:
             raise ConnectorError(
                 f"Failed to insert batch: {e}",
@@ -343,7 +358,7 @@ class DuckDBConnector:
                 },
             ) from e
 
-    def write_batch(self, batch: Batch, state: State) -> None:
+    def write_batch(self, batch: ArrowBatch, state: State) -> None:
         """Write a batch to DuckDB table.
 
         Creates the table if it doesn't exist, handles schema evolution

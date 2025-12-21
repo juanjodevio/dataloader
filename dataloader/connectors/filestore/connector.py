@@ -11,7 +11,7 @@ import fsspec
 from fsspec import AbstractFileSystem
 
 from dataloader.connectors.registry import ConnectorConfigUnion, register_connector
-from dataloader.core.batch import Batch, DictBatch
+from dataloader.core.batch import ArrowBatch, Batch
 from dataloader.core.exceptions import ConnectorError
 from dataloader.core.state import State
 from dataloader.models.destination_config import DestinationConfig

@@ -10,7 +10,7 @@ from abc import ABC, abstractmethod
 from io import BytesIO, StringIO, TextIOWrapper
 from typing import Any, Iterable
 
-from dataloader.core.batch import Batch, DictBatch
+from dataloader.core.batch import ArrowBatch, Batch
 from dataloader.core.exceptions import ConnectorError
 
 
@@ -41,7 +41,7 @@ class Format(ABC):
         batch_size: int = 1000,
         encoding: str = "utf-8",
         **kwargs: Any,
-    ) -> Iterable[DictBatch]:
+    ) -> Iterable[ArrowBatch]:
         """Read batches from file content.
 
         Args:
@@ -52,7 +52,7 @@ class Format(ABC):
             **kwargs: Format-specific options.
 
         Yields:
-            DictBatch instances containing the data.
+            ArrowBatch instances containing the data.
         """
         ...
 
@@ -203,7 +203,7 @@ class CSVFormat(Format):
             batch_rows = rows_buffer[i : i + batch_size]
             batch_number += 1
 
-            yield DictBatch(
+            yield ArrowBatch.from_rows(
                 columns=columns,
                 rows=batch_rows,
                 metadata={
@@ -251,7 +251,7 @@ class JSONFormat(Format):
         batch_size: int = 1000,
         encoding: str = "utf-8",
         **kwargs: Any,
-    ) -> Iterable[DictBatch]:
+    ) -> Iterable[ArrowBatch]:
         """Read batches from JSON content."""
         # Convert bytes to string if needed
         if isinstance(content, bytes):
@@ -300,7 +300,7 @@ class JSONFormat(Format):
             batch_rows = row_data[i : i + batch_size]
             batch_number += 1
 
-            yield DictBatch(
+            yield ArrowBatch.from_rows(
                 columns=columns,
                 rows=batch_rows,
                 metadata={
@@ -347,7 +347,7 @@ class JSONLFormat(Format):
         batch_size: int = 1000,
         encoding: str = "utf-8",
         **kwargs: Any,
-    ) -> Iterable[DictBatch]:
+    ) -> Iterable[ArrowBatch]:
         """Read batches from JSONL content."""
         # Convert bytes to string if needed
         if isinstance(content, bytes):
@@ -401,7 +401,7 @@ class JSONLFormat(Format):
             batch_rows = rows[i : i + batch_size]
             batch_number += 1
 
-            yield DictBatch(
+            yield ArrowBatch.from_rows(
                 columns=columns,
                 rows=batch_rows,
                 metadata={
@@ -447,15 +447,9 @@ class ParquetFormat(Format):
         batch_size: int = 1000,
         encoding: str = "utf-8",
         **kwargs: Any,
-    ) -> Iterable[DictBatch]:
-        """Read batches from Parquet content."""
-        try:
-            import pandas as pd
-        except ImportError:
-            raise ConnectorError(
-                "pandas is required for Parquet format. Install with: pip install pandas pyarrow",
-                context={"file_path": file_path},
-            )
+    ) -> Iterable[ArrowBatch]:
+        """Read batches from Parquet content using PyArrow."""
+        import pyarrow.parquet as pq
 
         # Parquet content should be bytes
         if isinstance(content, str):
@@ -465,54 +459,49 @@ class ParquetFormat(Format):
             )
 
         try:
-            # Read parquet from bytes
-            df = pd.read_parquet(BytesIO(content), **kwargs)
+            # Read parquet from bytes using PyArrow
+            parquet_file = pq.ParquetFile(BytesIO(content))
+            table = parquet_file.read(**kwargs)
         except Exception as e:
             raise ConnectorError(
                 f"Failed to read Parquet: {e}",
                 context={"file_path": file_path},
             ) from e
 
-        columns = list(df.columns)
-        column_types = {col: str(dtype) for col, dtype in df.dtypes.items()}
-
-        # Convert DataFrame to rows
-        rows = df.values.tolist()
+        columns = table.column_names
+        column_types = {
+            col: str(table.schema.field(col).type) for col in columns
+        }
 
         # Yield in batches
         batch_number = 0
-        for i in range(0, len(rows), batch_size):
-            batch_rows = rows[i : i + batch_size]
+        for i in range(0, table.num_rows, batch_size):
+            end_idx = min(i + batch_size, table.num_rows)
+            batch_table = table.slice(i, end_idx - i)
             batch_number += 1
 
-            yield DictBatch(
-                columns=columns,
-                rows=batch_rows,
+            yield ArrowBatch(
+                batch_table,
                 metadata={
                     "batch_number": batch_number,
-                    "row_count": len(batch_rows),
+                    "row_count": batch_table.num_rows,
                     "format": "parquet",
                     "file_path": file_path,
                     "column_types": column_types,
                 },
             )
 
-    def write_batch(self, batch: Batch, encoding: str = "utf-8", **kwargs: Any) -> bytes:
-        """Convert batch to Parquet format."""
-        try:
-            import pandas as pd
-        except ImportError:
-            raise ConnectorError(
-                "pandas is required for Parquet format. Install with: pip install pandas pyarrow"
-            )
+    def write_batch(self, batch: ArrowBatch, encoding: str = "utf-8", **kwargs: Any) -> bytes:
+        """Convert batch to Parquet format using PyArrow."""
+        import pyarrow.parquet as pq
 
         try:
-            # Convert batch to DataFrame
-            df = pd.DataFrame(batch.rows, columns=batch.columns)
+            # Get Arrow table from batch
+            arrow_table = batch.to_arrow()
 
             # Write to bytes buffer
             buffer = BytesIO()
-            df.to_parquet(buffer, index=False, **kwargs)
+            pq.write_table(arrow_table, buffer, **kwargs)
             return buffer.getvalue()
         except Exception as e:
             raise ConnectorError(

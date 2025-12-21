@@ -7,7 +7,10 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.exc import SQLAlchemyError
 
 from dataloader.connectors.registry import ConnectorConfigUnion, register_connector
-from dataloader.core.batch import Batch, DictBatch
+import pandas as pd
+import pyarrow as pa
+
+from dataloader.core.batch import ArrowBatch, Batch
 from dataloader.core.exceptions import ConnectorError
 from dataloader.core.state import State
 from dataloader.models.destination_config import DestinationConfig
@@ -160,16 +163,16 @@ class PostgresConnector:
 
         return " ".join(query_parts), params
 
-    def read_batches(self, state: State) -> Iterable[DictBatch]:
+    def read_batches(self, state: State) -> Iterable[ArrowBatch]:
         """Read data from PostgreSQL table as batches.
 
-        Uses SQLAlchemy's streaming result for memory-efficient batch reading.
+        Uses SQLAlchemy with pandas to read data efficiently, then converts to Arrow.
 
         Args:
             state: Current state containing cursor values for incremental reads.
 
         Yields:
-            DictBatch instances containing the data.
+            ArrowBatch instances containing the data.
 
         Raises:
             ConnectorError: If connection or query fails.
@@ -183,27 +186,23 @@ class PostgresConnector:
             query, params = self._build_query(state)
 
             with engine.connect() as conn:
-                # Use stream_results for memory-efficient reading
-                result = conn.execution_options(stream_results=True).execute(
-                    text(query), params
-                )
-
+                # Use pandas read_sql with chunksize for memory-efficient reading
                 batch_number = 0
-                while True:
-                    rows = result.fetchmany(self._batch_size)
-                    if not rows:
+                for chunk_df in pd.read_sql(
+                    text(query), conn, params=params, chunksize=self._batch_size
+                ):
+                    if chunk_df.empty:
                         break
 
-                    # Convert Row objects to lists
-                    row_data = [list(row) for row in rows]
+                    # Convert pandas DataFrame to Arrow Table
+                    arrow_table = pa.Table.from_pandas(chunk_df)
 
                     batch_number += 1
-                    yield DictBatch(
-                        columns=columns,
-                        rows=row_data,
+                    yield ArrowBatch(
+                        arrow_table,
                         metadata={
                             "batch_number": batch_number,
-                            "row_count": len(row_data),
+                            "row_count": len(chunk_df),
                             "source_type": "postgres",
                             "table": self._table,
                             "schema": self._db_schema,
@@ -233,46 +232,49 @@ class PostgresConnector:
         except Exception:
             return set()
 
-    def _map_type(self, batch_type: str) -> str:
-        """Map batch column type to PostgreSQL type."""
-        type_map = {
-            "string": "VARCHAR",
-            "int": "INTEGER",
-            "float": "DOUBLE PRECISION",
-            "datetime": "TIMESTAMP",
-            "bool": "BOOLEAN",
-            "date": "DATE",
-        }
-        return type_map.get(batch_type, "VARCHAR")
-
-    def _infer_column_type(self, value: Any) -> str:
-        """Infer PostgreSQL type from a Python value."""
-        if value is None:
+    def _map_arrow_type_to_postgres(self, arrow_type: pa.DataType) -> str:
+        """Map Arrow type to PostgreSQL type."""
+        # Handle common Arrow types
+        if pa.types.is_string(arrow_type) or pa.types.is_large_string(arrow_type):
             return "VARCHAR"
-        if isinstance(value, bool):
-            return "BOOLEAN"
-        if isinstance(value, int):
-            return "INTEGER"
-        if isinstance(value, float):
-            return "DOUBLE PRECISION"
-        return "VARCHAR"
-
-    def _create_table(self, conn: Any, batch: Batch) -> None:
-        """Create table from batch schema if it doesn't exist."""
-        # Try to get column types from batch metadata
-        column_types = batch.metadata.get("column_types", {})
-
-        # Build column definitions
-        column_defs = []
-        for i, col in enumerate(batch.columns):
-            if col in column_types:
-                pg_type = self._map_type(column_types[col])
-            elif batch.rows:
-                # Infer from first row value
-                pg_type = self._infer_column_type(batch.rows[0][i])
+        elif pa.types.is_integer(arrow_type):
+            if pa.types.is_int64(arrow_type):
+                return "BIGINT"
+            elif pa.types.is_int32(arrow_type):
+                return "INTEGER"
+            elif pa.types.is_int16(arrow_type):
+                return "SMALLINT"
             else:
-                pg_type = "VARCHAR"
-            column_defs.append(f'"{col}" {pg_type}')
+                return "INTEGER"
+        elif pa.types.is_floating(arrow_type):
+            if pa.types.is_float64(arrow_type):
+                return "DOUBLE PRECISION"
+            else:
+                return "REAL"
+        elif pa.types.is_boolean(arrow_type):
+            return "BOOLEAN"
+        elif pa.types.is_timestamp(arrow_type):
+            return "TIMESTAMP"
+        elif pa.types.is_date(arrow_type):
+            return "DATE"
+        elif pa.types.is_date32(arrow_type):
+            return "DATE"
+        else:
+            # Default to VARCHAR for unknown types
+            return "VARCHAR"
+
+    def _create_table(self, conn: Any, batch: ArrowBatch) -> None:
+        """Create table from batch schema if it doesn't exist."""
+        # Get Arrow schema to determine column types
+        arrow_table = batch.to_arrow()
+        arrow_schema = arrow_table.schema
+
+        # Build column definitions from Arrow schema
+        column_defs = []
+        for col_name in batch.columns:
+            arrow_field = arrow_schema.field(col_name)
+            pg_type = self._map_arrow_type_to_postgres(arrow_field.type)
+            column_defs.append(f'"{col_name}" {pg_type}')
 
         columns_sql = ", ".join(column_defs)
 
@@ -286,33 +288,30 @@ class PostgresConnector:
                 context={"table": self._table, "columns": batch.columns},
             ) from e
 
-    def _add_missing_columns(self, conn: Any, batch: Batch) -> None:
+    def _add_missing_columns(self, conn: Any, batch: ArrowBatch) -> None:
         """Add columns that exist in batch but not in table (schema evolution)."""
         existing = self._get_existing_columns(conn)
-        column_types = batch.metadata.get("column_types", {})
+        arrow_table = batch.to_arrow()
+        arrow_schema = arrow_table.schema
 
-        for i, col in enumerate(batch.columns):
-            if col not in existing:
-                if col in column_types:
-                    pg_type = self._map_type(column_types[col])
-                elif batch.rows:
-                    pg_type = self._infer_column_type(batch.rows[0][i])
-                else:
-                    pg_type = "VARCHAR"
+        for col_name in batch.columns:
+            if col_name not in existing:
+                arrow_field = arrow_schema.field(col_name)
+                pg_type = self._map_arrow_type_to_postgres(arrow_field.type)
 
                 try:
                     conn.execute(
                         text(
-                            f'ALTER TABLE {self._qualified_table} ADD COLUMN "{col}" {pg_type}'
+                            f'ALTER TABLE {self._qualified_table} ADD COLUMN "{col_name}" {pg_type}'
                         )
                     )
                 except SQLAlchemyError as e:
                     raise ConnectorError(
-                        f"Failed to add column '{col}': {e}",
-                        context={"table": self._table, "column": col},
+                        f"Failed to add column '{col_name}': {e}",
+                        context={"table": self._table, "column": col_name},
                     ) from e
 
-    def _handle_write_mode(self, conn: Any, batch: Batch) -> None:
+    def _handle_write_mode(self, conn: Any, batch: ArrowBatch) -> None:
         """Handle write mode logic before inserting."""
         if self._write_mode == "overwrite" and not self._table_created:
             # Drop and recreate table
@@ -342,26 +341,27 @@ class PostgresConnector:
                 self._add_missing_columns(conn, batch)
             self._table_created = True
 
-    def _insert_batch(self, conn: Any, batch: Batch) -> None:
-        """Insert batch rows using parameterized query."""
-        if not batch.rows:
+    def _insert_batch(self, conn: Any, batch: ArrowBatch) -> None:
+        """Insert batch rows using pandas to_sql for efficient bulk inserts."""
+        if batch.row_count == 0:
             return
 
-        columns = ", ".join(f'"{col}"' for col in batch.columns)
-        # Use named parameters for SQLAlchemy
-        placeholders = ", ".join(f":{col}" for col in batch.columns)
-        insert_sql = f"INSERT INTO {self._qualified_table} ({columns}) VALUES ({placeholders})"
-
         try:
-            # Convert rows to dict format for SQLAlchemy (column name -> value)
-            # SQLAlchemy 2.0 supports passing a list of dicts to execute() for executemany
-            param_dicts = [
-                {col: val for col, val in zip(batch.columns, row)} for row in batch.rows
-            ]
+            # Convert Arrow table to pandas DataFrame
+            arrow_table = batch.to_arrow()
+            df = arrow_table.to_pandas()
 
-            # Execute batch insert (SQLAlchemy 2.0 handles executemany automatically)
-            conn.execute(text(insert_sql), param_dicts)
-            conn.commit()
+            # Use pandas to_sql with engine for efficient bulk insert
+            # pandas.to_sql works with SQLAlchemy engine or connection
+            engine = self._get_engine()
+            df.to_sql(
+                self._table,
+                engine,
+                schema=self._db_schema,
+                if_exists="append",
+                index=False,
+                method="multi",  # Use multi-row insert for better performance
+            )
         except SQLAlchemyError as e:
             raise ConnectorError(
                 f"Failed to insert batch: {e}",
@@ -372,7 +372,7 @@ class PostgresConnector:
                 },
             ) from e
 
-    def write_batch(self, batch: Batch, state: State) -> None:
+    def write_batch(self, batch: ArrowBatch, state: State) -> None:
         """Write a batch to PostgreSQL table.
 
         Creates the table if it doesn't exist, handles schema evolution
