@@ -228,6 +228,14 @@ class CSVFormat(Format):
 class JSONFormat(Format):
     """JSON format handler (single JSON array or object)."""
 
+    def __init__(self, **kwargs: Any):
+        """Initialize JSON format handler.
+        
+        Args:
+            **kwargs: Ignored (for compatibility with get_format).
+        """
+        pass
+
     @property
     def name(self) -> str:
         return "json"
@@ -315,6 +323,14 @@ class JSONFormat(Format):
 
 class JSONLFormat(Format):
     """JSONL (JSON Lines) format handler - one JSON object per line."""
+
+    def __init__(self, **kwargs: Any):
+        """Initialize JSONL format handler.
+        
+        Args:
+            **kwargs: Ignored (for compatibility with get_format).
+        """
+        pass
 
     @property
     def name(self) -> str:
@@ -407,6 +423,14 @@ class JSONLFormat(Format):
 
 class ParquetFormat(Format):
     """Parquet format handler using pandas."""
+
+    def __init__(self, **kwargs: Any):
+        """Initialize Parquet format handler.
+        
+        Args:
+            **kwargs: Ignored (for compatibility with get_format).
+        """
+        pass
 
     @property
     def name(self) -> str:
