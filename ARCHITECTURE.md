@@ -323,23 +323,30 @@ class Batch(Protocol):
     def to_dict(self) -> dict[str, Any]: ...
 ```
 
-**DictBatch Implementation** (Current):
+**ArrowBatch Implementation** (Current):
+
+All batches use Apache Arrow format via PyArrow for:
+- Zero-copy data transfer between connectors
+- Memory-efficient processing
+- Better performance for large datasets
+- Native integration with Arrow-based tools (Polars, DuckDB, etc.)
 
 ```python
-batch = DictBatch(
+# Create ArrowBatch from Arrow table
+import pyarrow as pa
+table = pa.table({"id": [1, 2], "name": ["Alice", "Bob"]})
+batch = ArrowBatch(table, metadata={"source_type": "postgres", "table": "users"})
+
+# Or create from rows (factory method)
+batch = ArrowBatch.from_rows(
     columns=["id", "name", "updated_at"],
     rows=[[1, "Alice", "2024-01-01"], [2, "Bob", "2024-01-02"]],
     metadata={"source_type": "postgres", "table": "users"}
 )
+
+# Access underlying Arrow table for zero-copy operations
+arrow_table = batch.to_arrow()
 ```
-
-**ArrowBatch Implementation** (Planned):
-
-Future implementation will support Apache Arrow format for:
-- Zero-copy data transfer
-- Memory-efficient processing
-- Better performance for large datasets
-- Native integration with Arrow-based tools (Polars, DuckDB, etc.)
 
 ### 5.6 Exception Hierarchy ✅ Implemented
 
@@ -430,7 +437,7 @@ Templates are rendered during recipe loading, so no separate connection dictiona
 **Package Exports** (`dataloader/__init__.py`):
 
 - Public API: `from_yaml`, `run_recipe`, `run_recipe_from_yaml`
-- Core classes: `Recipe`, `State`, `StateBackend`, `LocalStateBackend`, `Batch`, `DictBatch`
+- Core classes: `Recipe`, `State`, `StateBackend`, `LocalStateBackend`, `Batch`, `ArrowBatch`
 - Exceptions: `DataLoaderError`, `RecipeError`, `ConnectorError`, `TransformError`, `StateError`, `EngineError`
 
 ### 7.2 CLI 🚧 Planned
@@ -675,38 +682,40 @@ source:
   - Audit logging
   - Role-based access control
 
-### v0.3.1 – Arrow Batch Support
+### v0.3.1 – Arrow Batch Support ✅ Complete
 
-**Goal**: Add Apache Arrow batch format for improved performance
+**Goal**: Apache Arrow batch format for improved performance
 
-- [ ] **ArrowBatch Implementation**
-  - Implement `ArrowBatch` class conforming to `Batch` protocol
-  - Use PyArrow for Arrow format support
+- [x] **ArrowBatch Implementation**
+  - Implemented `ArrowBatch` class conforming to `Batch` protocol
+  - Uses PyArrow for Arrow format support
   - Zero-copy data transfer between connectors
   - Memory-efficient processing for large datasets
 
-- [ ] **Connector Arrow Support**
-  - Update connectors to support Arrow batches
-  - PostgresConnector: Arrow-based reads/writes
-  - DuckDBConnector: Native Arrow support
-  - FileStoreConnector: Arrow format handler
-  - Automatic conversion between DictBatch and ArrowBatch
+- [x] **Connector Arrow Support**
+  - All connectors use ArrowBatch exclusively
+  - PostgresConnector: Arrow-based reads/writes using pandas + Arrow
+  - DuckDBConnector: Native Arrow support with zero-copy operations
+  - FileStoreConnector: All formats return/accept ArrowBatch
+  - DictBatch completely removed from codebase
 
-- [ ] **Performance Benefits**
+- [x] **Performance Benefits**
   - Reduced memory footprint
   - Faster data transfer
   - Better integration with Arrow-based tools (Polars, DuckDB)
-  - Parallel processing without GIL limitations
+  - Efficient Arrow-native operations in transforms
 
-**Example Usage:**
+**Usage:**
 
 ```python
 from dataloader import ArrowBatch
+import pyarrow as pa
 
-# Connectors can return ArrowBatch for better performance
+# All connectors return ArrowBatch
 for batch in connector.read_batches(state):
-    # batch is ArrowBatch, zero-copy operations
-    transformed = transform.apply(batch)
+    # batch is ArrowBatch, supports zero-copy operations
+    arrow_table = batch.to_arrow()  # Access underlying Arrow table
+    transformed = transform.apply(batch)  # Transforms use Arrow-native operations
     destination.write_batch(transformed, state)
 ```
 
@@ -774,7 +783,7 @@ dataloader/
   api.py                  # Public Python API
   core/
     __init__.py
-    batch.py              # Batch protocol and DictBatch
+    batch.py              # Batch protocol and ArrowBatch
     engine.py             # Execution engine ✅
     exceptions.py         # Exception hierarchy
     state.py              # State model
