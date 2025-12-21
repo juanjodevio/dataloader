@@ -1,6 +1,6 @@
 """Core module for dataloader package."""
 
-from dataloader.core.batch import Batch, DictBatch
+from dataloader.core.batch import ArrowBatch, Batch
 from dataloader.core.engine import execute
 from dataloader.core.exceptions import (
     ConnectorError,
@@ -15,7 +15,7 @@ from dataloader.core.state_backend import LocalStateBackend, StateBackend
 
 __all__ = [
     "Batch",
-    "DictBatch",
+    "ArrowBatch",
     "State",
     "StateBackend",
     "LocalStateBackend",
