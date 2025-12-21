@@ -389,15 +389,17 @@ def execute(recipe: Recipe, state_backend: StateBackend) -> None:
 - Comprehensive error handling with context
 - Unified connector interface (same connector can be used as source or destination)
 
-## 6. Rust Engine (Optional) 🔮 Future
+## 6. Rust Engine (Optional) 🔮 Future (v0.10)
 
-Rust is introduced for:
+Rust acceleration is planned for performance-critical operations:
 
-- Arrow-formatted batching
-- Polars-based transforms
+- Native Rust Arrow implementation
+- Rust-based transform engine
 - CSV/Parquet read/write at high throughput
 - IO parallel orchestration without Python GIL
 - Bindings via PyO3
+
+See roadmap section for details.
 
 ## 7. Developer Experience
 
@@ -452,81 +454,49 @@ dataloader list-connectors
 
 ## 8. Roadmap
 
-### v0.1 – Prototype ✅ Complete
+| # | Milestone | Status | Priority | Description |
+|---|-----------|--------|----------|-------------|
+| 1 | [Prototype](#prototype--complete) | ✅ Complete | - | Recipe model, connectors, transforms, execution engine |
+| 2 | [Reliable MVP](#reliable-mvp--complete) | ✅ Complete | - | Parallelism, logging, metrics, state backends, CLI |
+| 3 | [Optional Dependencies](#optional-dependencies--complete) | ✅ Complete | - | Dependency management with optional extras |
+| 4 | [Arrow Batch Support](#arrow-batch-support--complete) | ✅ Complete | - | Apache Arrow batch format for improved performance |
+| 5 | [Schema Management & Type System](#schema-management--type-system) | 🚧 Planned | High | Automatic schema inference, evolution, and rich type handling |
+| 6 | [Data Normalization](#data-normalization) | 🚧 Planned | Medium | Automatically flatten nested data structures |
+| 7 | [Incremental Loading & State Management](#incremental-loading--state-management) | 🚧 Planned | High | Robust incremental loading with cursor-based and watermark strategies |
+| 8 | [Additional File Storage Backends](#additional-file-storage-backends) | 🚧 Planned | Medium | SFTP, Azure Blob Storage, Google Cloud Storage |
+| 9 | [Comprehensive Integration Tests](#comprehensive-integration-tests) | 🚧 Planned | High | Comprehensive integration test suite covering all connectors and scenarios |
+| 10 | [Top 10 Datastores Connectors](#top-10-datastores-connectors) | 🚧 Planned | Highest | MySQL, Snowflake, BigQuery, Redshift, SQL Server, Databricks, Oracle, MongoDB, ClickHouse, Elasticsearch |
+| 11 | [Built-in SaaS Source Connectors](#built-in-saas-source-connectors) | 🚧 Planned | High | Pre-built connectors for Stripe, Shopify, Salesforce, etc. |
+| 12 | [Production Features](#production-features) | 🚧 Planned | Essential | Enterprise-ready observability, scheduling, and security |
+| 13 | [Rust Engine](#rust-engine) | 🚧 Planned | Future | Optional Rust acceleration for high-performance scenarios |
 
-- [x] Recipe model layer (Pydantic)
-- [x] Recipe inheritance (`extends:`)
-- [x] Template rendering (`{{ env_var('VAR') }}`, `{{ var('VAR') }}`, `{{ recipe.name }}`)
-- [x] Delete semantics for inheritance
-- [x] Unified Connector protocol (replaces separate Source/Destination)
-- [x] Unified connector registry (decorator pattern)
-- [x] PostgresConnector (SQLAlchemy) - Read/Write
-- [x] DuckDBConnector - Read/Write
-- [x] FileStoreConnector (fsspec + format handlers) - Read/Write
-  - [x] S3 backend
-  - [x] Local filesystem backend
-  - [x] CSV, JSON, JSONL, Parquet formats
-  - [x] Extensible format registry
-- [x] Batch and State models
-- [x] Exception hierarchy
-- [x] Transform pipeline executor
-- [x] Transform registry (decorator pattern)
-- [x] Basic transforms (rename_columns, cast, add_column)
-- [x] Execution engine ✅
-- [x] Local JSON state backend (`LocalStateBackend`) ✅
-- [x] Public Python API (`from_yaml`, `run_recipe`, `run_recipe_from_yaml`) ✅
-- [x] Example recipes ✅
-- [x] Documentation (README.md) ✅
-- [x] Integration tests ✅
-- [x] Comprehensive test suite (219+ tests passing, including Windows compatibility tests)
+### 1. Prototype ✅ Complete
 
-### v0.2 – Reliable MVP ✅ Complete
+**Version**: 0.0.0b1
 
-- [x] Parallelism (asyncio-based)
-- [x] Structured logging (JSON/normal format)
-- [x] Metrics collection
-- [x] S3/DynamoDB state backends
-- [x] Full CLI interface
-- [x] State backend factory
+All features completed. See [CHANGELOG.md](CHANGELOG.md) for detailed release notes.
 
-### v0.2.1 – Optional Dependencies & Integration Tests 🚧 In Progress
+### 2. Reliable MVP ✅ Complete
 
-**Goal**: Improve dependency management and test coverage
+**Version**: 0.0.0b2
 
-- [ ] **Optional Dependencies (Extras)**
-  - Split dependencies into optional extras based on connector needs
-  - `[postgres]` extra: psycopg2-binary, sqlalchemy
-  - `[s3]` extra: boto3, s3fs, fsspec
-  - `[duckdb]` extra: duckdb
-  - `[parquet]` extra: pyarrow, pandas
-  - `[all]` extra: all optional dependencies
-  - Update `pyproject.toml` with extras configuration
-  - Update installation docs with examples
+All features completed. See [CHANGELOG.md](CHANGELOG.md) for detailed release notes.
 
-- [ ] **Enhanced Integration Tests**
-  - Expand integration test coverage
-  - Test multi-connector pipelines (Postgres → FileStore → DuckDB)
-  - Test format conversions (CSV → JSON → Parquet)
-  - Test incremental loading across different connectors
-  - Test error recovery and state persistence
-  - Test recipe inheritance with connectors
-  - Add performance benchmarks
+### 3. Optional Dependencies ✅ Complete
 
-**Example Installation:**
+**Version**: 0.0.0b3
 
-```bash
-# Minimal installation
-pip install dataloader
+All features completed. See [CHANGELOG.md](CHANGELOG.md) for detailed release notes.
 
-# With specific connectors
-pip install dataloader[postgres,duckdb]
-pip install dataloader[s3,parquet]
+### 4. Arrow Batch Support ✅ Complete
 
-# All connectors
-pip install dataloader[all]
-```
+**Version**: 0.0.0b4
 
-### v0.3 – Schema Management & Type System
+All features completed. See [CHANGELOG.md](CHANGELOG.md) for detailed release notes.
+
+### 5. Schema Management & Type System
+
+**Priority**: High - Foundation for robust data handling
 
 **Goal**: Automatic schema inference, evolution, and rich type handling
 
@@ -583,7 +553,9 @@ destination:
   table: customers
 ```
 
-### v0.4 – Data Normalization
+### 6. Data Normalization
+
+**Priority**: Medium - Useful for nested data sources
 
 **Goal**: Automatically flatten nested data structures for easier analysis
 
@@ -617,44 +589,239 @@ normalization:
       relationship: one_to_many
 ```
 
-### v0.8 – Built-in Verified Sources
+### 7. Incremental Loading & State Management
 
-**Goal**: Provide pre-built, tested connectors for common data sources
+**Priority**: High - Critical for efficient data pipelines
 
-- [ ] **REST API Source**
-  - Generic REST API connector
-  - Pagination support (offset, cursor, page)
-  - Rate limiting
-  - Authentication (API key, OAuth, JWT)
-  - Incremental loading
+**Goal**: Robust incremental loading with cursor-based and watermark strategies
 
-- [ ] **Common SaaS Sources**
-  - Stripe
-  - Shopify
-  - Salesforce
-  - Google Analytics
-  - HubSpot
-  - GitHub
-  - Slack
+- [ ] **Incremental Loading Strategies**
+  - Cursor-based incremental loading (basic support exists, needs enhancement)
+  - Watermark-based incremental loading
+  - Change data capture (CDC) support
+  - Timestamp-based incremental loading
+  - Custom incremental strategies
 
-- [ ] **Source Registry**
-  - Community-contributed sources
-  - Source testing framework
-  - Source documentation generator
-  - Source versioning
+- [ ] **State Management Enhancements**
+  - Robust state persistence across runs
+  - State recovery after failures
+  - State validation and migration
+  - State backend improvements (S3, DynamoDB)
+  - State compression for large datasets
 
-**Example Recipe Enhancement:**
+- [ ] **Incremental Loading by Connector**
+  - Postgres: Cursor-based incremental (SQLAlchemy)
+  - FileStore: Modification time-based incremental
+  - DuckDB: Cursor-based incremental
+  - S3: Object listing with timestamps
+  - All connectors: Unified incremental interface
+
+- [ ] **Error Recovery**
+  - Automatic retry with exponential backoff
+  - Resume from last successful batch
+  - State checkpointing
+  - Partial failure handling
+  - Dead letter queue for failed batches
+
+**Example Recipe:**
 ```yaml
 source:
-  type: stripe
-  api_key: "{{ env_var('STRIPE_API_KEY') }}"
-  resource: customers
+  type: postgres
+  table: customers
   incremental:
     strategy: cursor
-    cursor_column: created
+    cursor_column: updated_at
+    initial_value: "2024-01-01 00:00:00"
+
+destination:
+  type: duckdb
+  database: customers.duckdb
+  table: customers
+  write_mode: merge
+  merge_keys: [id]
 ```
 
-### v0.9 – Production Features
+### 8. Additional File Storage Backends
+
+**Priority**: Medium - Expand storage options
+
+**Goal**: Support additional file storage backends beyond S3 and local filesystem
+
+- [ ] **SFTP Backend**
+  - SFTP connector using paramiko or pysftp
+  - Support for SSH key and password authentication
+  - Directory listing and file operations
+
+- [ ] **Azure Blob Storage**
+  - Azure Blob Storage connector using azure-storage-blob
+  - Support for Azure-specific features (containers, snapshots)
+  - Authentication via connection string or service principal
+
+- [ ] **Google Cloud Storage**
+  - GCS connector using google-cloud-storage
+  - Support for GCS-specific features (buckets, objects)
+  - Authentication via service account or application default credentials
+
+**Implementation Approach:**
+- Leverage fsspec for unified filesystem abstraction
+- Follow FileStoreConnector pattern
+- Support all existing formats (CSV, JSON, JSONL, Parquet)
+- Maintain consistent API across all backends
+
+### 9. Comprehensive Integration Tests
+
+**Priority**: High - Essential for reliability and confidence
+
+**Goal**: Comprehensive integration test suite covering all connectors, formats, and pipeline scenarios
+
+- [ ] **Core Integration Tests**
+  - End-to-end pipeline tests (CSV → DuckDB, JSON → Parquet, etc.)
+  - Multi-connector pipeline tests (FileStore → FileStore → DuckDB)
+  - Format conversion tests (CSV → JSON → Parquet, all combinations)
+  - Recipe loading and inheritance tests
+  - Template rendering tests with real recipes
+
+- [ ] **Connector-Specific Integration Tests**
+  - Postgres connector: Read/write with real database
+  - DuckDB connector: File-based and in-memory databases
+  - FileStore connector: Local filesystem and S3 backends
+  - All format handlers: CSV, JSON, JSONL, Parquet
+  - Cross-connector compatibility tests
+
+- [ ] **Transform Integration Tests**
+  - Transform pipeline with multiple steps
+  - Transform combinations (rename + cast + add_column)
+  - Transform error handling
+  - Transform with different data types
+
+- [ ] **State Management Integration Tests**
+  - State persistence across runs
+  - State backend isolation between recipes
+  - State recovery after failures
+  - Multiple state backends (Local, S3, DynamoDB)
+
+- [ ] **Error Handling Integration Tests**
+  - Connection failures
+  - Invalid data handling
+  - Schema mismatches
+  - Partial failures and recovery
+
+- [ ] **Performance & Scale Tests**
+  - Large dataset handling
+  - Memory efficiency tests
+  - Batch size optimization tests
+  - Parallel execution tests
+
+- [ ] **CI/CD Integration**
+  - Automated test execution
+  - Test coverage reporting
+  - Integration test fixtures and setup
+  - Docker-based test environments for databases
+
+**Test Infrastructure:**
+- Test fixtures for all connectors
+- Mock services for external dependencies
+- Test data generators
+- Performance benchmarking framework
+
+### 10. Top 10 Datastores Connectors
+
+**Priority**: Highest - Critical for adoption and utility
+
+**Goal**: Support the most popular datastores to maximize utility and adoption
+
+This milestone focuses on implementing connectors for the most widely-used data platforms and databases. Each connector will follow the unified connector protocol and support read/write operations where applicable.
+
+**Priority Datastores:**
+
+1. **MySQL** - Most popular open-source relational database
+   - SQLAlchemy-based connector (similar to Postgres)
+   - Support MySQL-specific types and features
+   - Incremental loading support
+
+2. **Snowflake** - Leading cloud data warehouse
+   - Native Snowflake connector with snowflake-connector-python
+   - Support for Snowflake-specific features (stages, warehouses, etc.)
+   - Zero-copy operations with Arrow batches
+
+3. **BigQuery** - Google Cloud data warehouse
+   - google-cloud-bigquery connector
+   - Support for BigQuery-specific features (partitioning, clustering)
+   - Efficient streaming inserts
+
+4. **Redshift** - AWS data warehouse (SQLAlchemy-compatible)
+   - SQLAlchemy-based connector
+   - Support Redshift-specific optimizations
+   - COPY commands for bulk loads
+
+5. **SQL Server** - Microsoft's enterprise database
+   - SQLAlchemy-based connector
+   - Support for SQL Server-specific types
+   - Incremental loading support
+
+6. **Databricks** - Unified analytics platform
+   - Databricks SQL connector
+   - Support for Delta Lake format
+   - Unity Catalog integration
+
+7. **Oracle** - Enterprise database
+   - SQLAlchemy-based connector
+   - Support for Oracle-specific features (partitions, etc.)
+   - Incremental loading support
+
+8. **MongoDB** - Popular NoSQL document database
+   - pymongo-based connector
+   - Document collection read/write
+   - Query-based incremental loading
+
+9. **ClickHouse** - Fast analytics database
+   - clickhouse-connect or clickhouse-driver connector
+   - Support for ClickHouse-specific features (engines, partitions)
+   - Efficient bulk inserts
+
+10. **Elasticsearch** - Search and analytics engine
+    - elasticsearch-py connector
+    - Index-based read/write operations
+    - Support for document indexing and querying
+
+**Implementation Approach:**
+
+- Leverage SQLAlchemy for SQL databases (MySQL, SQL Server, Oracle, Redshift)
+- Use native SDKs for cloud platforms (Snowflake, BigQuery, Databricks)
+- Follow unified connector protocol for consistency
+- Support ArrowBatch for efficient data transfer
+- Incremental loading will be implemented in v0.5.1 milestone
+- Add comprehensive unit and integration tests
+
+**Example Recipe:**
+
+```yaml
+source:
+  type: snowflake
+  account: "{{ env_var('SNOWFLAKE_ACCOUNT') }}"
+  user: "{{ env_var('SNOWFLAKE_USER') }}"
+  password: "{{ env_var('SNOWFLAKE_PASSWORD') }}"
+  warehouse: "COMPUTE_WH"
+  database: "ANALYTICS"
+  schema: "PUBLIC"
+  table: "CUSTOMERS"
+  # Incremental loading will be fully implemented in v0.5.1
+  # incremental:
+  #   strategy: cursor
+  #   cursor_column: updated_at
+
+destination:
+  type: bigquery
+  project: "{{ env_var('GCP_PROJECT') }}"
+  dataset: "analytics"
+  table: "customers"
+  write_mode: merge
+  merge_keys: [id]
+```
+
+### 12. Production Features
+
+**Priority**: Essential for production deployments
 
 **Goal**: Enterprise-ready observability, scheduling, and security
 
@@ -682,44 +849,49 @@ source:
   - Audit logging
   - Role-based access control
 
-### v0.3.1 – Arrow Batch Support ✅ Complete
+### 11. Built-in SaaS Source Connectors
 
-**Goal**: Apache Arrow batch format for improved performance
+**Priority**: High value-add for common use cases
 
-- [x] **ArrowBatch Implementation**
-  - Implemented `ArrowBatch` class conforming to `Batch` protocol
-  - Uses PyArrow for Arrow format support
-  - Zero-copy data transfer between connectors
-  - Memory-efficient processing for large datasets
+**Goal**: Provide pre-built, tested connectors for common SaaS data sources
 
-- [x] **Connector Arrow Support**
-  - All connectors use ArrowBatch exclusively
-  - PostgresConnector: Arrow-based reads/writes using pandas + Arrow
-  - DuckDBConnector: Native Arrow support with zero-copy operations
-  - FileStoreConnector: All formats return/accept ArrowBatch
-  - DictBatch completely removed from codebase
+- [ ] **REST API Source**
+  - Generic REST API connector
+  - Pagination support (offset, cursor, page)
+  - Rate limiting
+  - Authentication (API key, OAuth, JWT)
+  - Incremental loading (see v0.5.1 milestone)
 
-- [x] **Performance Benefits**
-  - Reduced memory footprint
-  - Faster data transfer
-  - Better integration with Arrow-based tools (Polars, DuckDB)
-  - Efficient Arrow-native operations in transforms
+- [ ] **Common SaaS Sources**
+  - Stripe
+  - Shopify
+  - Salesforce
+  - Google Analytics
+  - HubSpot
+  - GitHub
+  - Slack
 
-**Usage:**
+- [ ] **Source Registry**
+  - Community-contributed sources
+  - Source testing framework
+  - Source documentation generator
+  - Source versioning
 
-```python
-from dataloader import ArrowBatch
-import pyarrow as pa
-
-# All connectors return ArrowBatch
-for batch in connector.read_batches(state):
-    # batch is ArrowBatch, supports zero-copy operations
-    arrow_table = batch.to_arrow()  # Access underlying Arrow table
-    transformed = transform.apply(batch)  # Transforms use Arrow-native operations
-    destination.write_batch(transformed, state)
+**Example Recipe Enhancement:**
+```yaml
+source:
+  type: stripe
+  api_key: "{{ env_var('STRIPE_API_KEY') }}"
+  resource: customers
+  # Incremental loading will be fully implemented in v0.5.1
+  # incremental:
+  #   strategy: cursor
+  #   cursor_column: created
 ```
 
-### v0.10 – Rust Engine (Performance)
+### 13. Rust Engine
+
+**Priority**: Low - optimization for high-performance scenarios
 
 **Goal**: Optional Rust acceleration for performance-critical operations
 
@@ -738,31 +910,6 @@ for batch in connector.read_batches(state):
   - CSV/Parquet read/write at high throughput
   - IO parallel orchestration without Python GIL
   - Bindings via PyO3
-
-### v0.11 – SFTP Backend Support
-
-**Goal**: Add SFTP backend to FileStore connector for secure file transfer
-
-- [ ] **SFTP Backend Implementation**
-  - Add SFTP backend to FileStore connector
-  - Support SFTP authentication (password, key-based)
-  - Implement SFTP file operations (read, write, list, delete)
-  - Add `SFTPFileStoreConfig` configuration class
-  - Update backend detection logic
-  - Add SFTP integration tests
-
-**Example Recipe with SFTP:**
-
-```yaml
-source:
-  type: filestore
-  backend: sftp
-  host: sftp.example.com
-  username: "{{ env_var('SFTP_USER') }}"
-  password: "{{ env_var('SFTP_PASSWORD') }}"
-  path: /data/export/
-  format: csv
-```
 
 ## 9. Differentiators vs Existing Tools
 
@@ -990,5 +1137,5 @@ This architecture enables a powerful, extensible, and high-performance data load
 - Comprehensive test suite (219+ tests passing, including Windows compatibility tests)
 
 **Next Steps:** 
-- v0.2.1 (Optional Dependencies & Integration Tests) - See roadmap above
-- v0.3 (Schema Management & Type System) - See roadmap above for detailed feature plans through v0.10
+- Complete milestone 9 (Comprehensive Integration Tests)
+- Begin milestone 10 (Top 10 Datastores Connectors) - Start with MySQL, Snowflake, and BigQuery as highest priority connectors
