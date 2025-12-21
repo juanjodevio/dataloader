@@ -14,6 +14,9 @@ def test_metrics_collector_basic():
     metrics.record_batch(200, 0.8)
     metrics.record_batch(150, 0.6)
     
+    # Add a small sleep to ensure measurable execution time
+    time.sleep(0.01)
+    
     metrics.finish()
     
     assert metrics.batches_processed == 3

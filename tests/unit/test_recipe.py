@@ -107,10 +107,9 @@ class TestRecipe:
                 password="dwpass",
                 table="dw.test",
             ),
-            runtime=RuntimeConfig(batch_size=5000, max_retries=3),
+            runtime=RuntimeConfig(batch_size=5000),
         )
         assert recipe.runtime.batch_size == 5000
-        assert recipe.runtime.max_retries == 3
 
     def test_recipe_from_dict(self):
         """Test creating recipe from dictionary."""

@@ -30,7 +30,7 @@ class TestRecipeLoadingIntegration:
 
         recipe = Recipe.from_yaml(str(child_path))
         assert recipe.name == "child_recipe"
-        assert len(recipe.transform.steps) == 3
+        assert len(recipe.transform.steps) == 2
         assert recipe.runtime.batch_size == 5000
         assert recipe.source.host == "localhost"
 

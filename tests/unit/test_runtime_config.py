@@ -13,7 +13,6 @@ class TestRuntimeConfig:
         """Test default values."""
         config = RuntimeConfig()
         assert config.batch_size == 10000
-        assert config.max_retries == 0
 
     def test_custom_batch_size(self):
         """Test custom batch size."""
@@ -31,14 +30,4 @@ class TestRuntimeConfig:
         """Test that batch_size cannot be negative."""
         with pytest.raises(ValidationError):
             RuntimeConfig(batch_size=-1)
-
-    def test_max_retries(self):
-        """Test max_retries setting."""
-        config = RuntimeConfig(max_retries=5)
-        assert config.max_retries == 5
-
-    def test_max_retries_zero(self):
-        """Test max_retries can be zero."""
-        config = RuntimeConfig(max_retries=0)
-        assert config.max_retries == 0
 
