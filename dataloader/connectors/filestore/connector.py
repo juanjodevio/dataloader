@@ -173,11 +173,21 @@ class FileStoreConnector:
         if file_path.startswith(("s3://", "gs://", "az://", "abfss://", "file://")):
             return file_path
         
-        # For S3FileStoreConfig, construct from bucket + path
+        # For S3FileStoreConfig, construct from bucket + path + file_path
         if isinstance(self._config, S3FileStoreConfig):
             bucket = self._config.bucket
+            # Combine the configured path prefix with the file_path
+            path_prefix = self._path.rstrip("/") if self._path else ""
             key = file_path.lstrip("/")
-            return f"s3://{bucket}/{key}"
+            
+            # If file_path already starts with path_prefix, don't duplicate it
+            if path_prefix and key.startswith(path_prefix + "/"):
+                # file_path already includes the prefix, use it as-is
+                return f"s3://{bucket}/{key}"
+            elif path_prefix:
+                return f"s3://{bucket}/{path_prefix}/{key}"
+            else:
+                return f"s3://{bucket}/{key}"
         
         # For SourceConfig/DestinationConfig, filepath already contains full path
         # file_path is relative to the base filepath, so we need to combine them
@@ -268,7 +278,26 @@ class FileStoreConnector:
     def _list_files(self) -> list[dict[str, Any]]:
         """List files in the configured path using fsspec."""
         fs = self._get_filesystem()
-        file_url = self._build_file_url(self._path)
+        
+        # Build the directory URL for listing files
+        # For S3FileStoreConfig, construct from bucket + path directly
+        if isinstance(self._config, S3FileStoreConfig):
+            bucket = self._config.bucket
+            path_prefix = self._path.rstrip("/") if self._path else ""
+            if path_prefix:
+                # Check if path is a file (has extension) or directory
+                valid_extensions = self._format_handler.extensions
+                is_file = any(path_prefix.lower().endswith(ext.lower()) for ext in valid_extensions)
+                if is_file:
+                    # Single file - don't add trailing slash
+                    file_url = f"s3://{bucket}/{path_prefix}"
+                else:
+                    # Directory - add trailing slash
+                    file_url = f"s3://{bucket}/{path_prefix}/"
+            else:
+                file_url = f"s3://{bucket}/"
+        else:
+            file_url = self._build_file_url(self._path)
 
         try:
             # For directories, list all files
@@ -413,7 +442,18 @@ class FileStoreConnector:
     def _delete_existing_files(self) -> None:
         """Delete existing files at the destination path (for overwrite mode)."""
         fs = self._get_filesystem()
-        file_url = self._build_file_url(self._path)
+        
+        # Build the directory URL for listing files
+        # For S3FileStoreConfig, construct from bucket + path
+        if isinstance(self._config, S3FileStoreConfig):
+            bucket = self._config.bucket
+            path_prefix = self._path.rstrip("/") if self._path else ""
+            if path_prefix:
+                file_url = f"s3://{bucket}/{path_prefix}/"
+            else:
+                file_url = f"s3://{bucket}/"
+        else:
+            file_url = self._build_file_url(self._path)
 
         try:
             if fs.isdir(file_url):
