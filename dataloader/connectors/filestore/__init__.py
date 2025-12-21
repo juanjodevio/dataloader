@@ -38,4 +38,3 @@ __all__ = [
     "list_formats",
     "register_format",
 ]
-

@@ -6,7 +6,6 @@ and connectors to ensure consistency across the codebase.
 
 import pyarrow as pa
 
-
 # String type names to Arrow types (used by cast transform)
 STRING_TO_ARROW_TYPE: dict[str, pa.DataType] = {
     "str": pa.string(),
@@ -25,13 +24,13 @@ STRING_TO_ARROW_TYPE: dict[str, pa.DataType] = {
 
 def string_to_arrow_type(type_name: str) -> pa.DataType:
     """Convert string type name to Arrow type.
-    
+
     Args:
         type_name: String type name (e.g., "int", "str", "datetime")
-        
+
     Returns:
         Arrow DataType
-        
+
     Raises:
         ValueError: If type_name is not supported
     """
@@ -47,10 +46,10 @@ def string_to_arrow_type(type_name: str) -> pa.DataType:
 
 def arrow_type_to_string(arrow_type: pa.DataType) -> str:
     """Convert Arrow type to canonical string name.
-    
+
     Args:
         arrow_type: Arrow DataType
-        
+
     Returns:
         Canonical string type name
     """
@@ -61,4 +60,3 @@ def arrow_type_to_string(arrow_type: pa.DataType) -> str:
             if name in ("str", "int", "float", "bool", "datetime"):
                 return name
     return str(arrow_type)
-

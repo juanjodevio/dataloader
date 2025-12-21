@@ -105,4 +105,3 @@ class TestDestinationConfig:
                 merge_keys=["id"] if mode == "merge" else None,
             )
             assert config.write_mode == mode
-

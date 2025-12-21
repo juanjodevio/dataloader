@@ -6,6 +6,14 @@ Provides:
 - Built-in transforms: rename_columns, cast, add_column
 """
 
+# Transform modules register themselves via @register_transform decorator
+from dataloader.transforms.add_column import (
+    AddColumnTransform,
+    create_add_column_transform,
+)
+from dataloader.transforms.cast import CastColumnsTransform, create_cast_transform
+from dataloader.transforms.pipeline import TransformPipeline
+
 # Registry must be imported first (other modules use register_transform decorator)
 from dataloader.transforms.registry import (
     Transform,
@@ -16,14 +24,6 @@ from dataloader.transforms.registry import (
     list_transform_types,
     register_transform,
 )
-
-# Transform modules register themselves via @register_transform decorator
-from dataloader.transforms.add_column import (
-    AddColumnTransform,
-    create_add_column_transform,
-)
-from dataloader.transforms.cast import CastColumnsTransform, create_cast_transform
-from dataloader.transforms.pipeline import TransformPipeline
 from dataloader.transforms.rename import (
     RenameColumnsTransform,
     create_rename_transform,
@@ -49,4 +49,3 @@ __all__ = [
     "create_cast_transform",
     "create_add_column_transform",
 ]
-

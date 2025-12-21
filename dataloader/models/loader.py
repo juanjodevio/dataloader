@@ -38,7 +38,9 @@ def load_recipe(path: str, cli_vars: Dict[str, str] | None = None) -> Recipe:
     try:
         return Recipe.from_dict(recipe_dict)
     except Exception as e:
-        raise RecipeError(f"Recipe validation failed: {e}", context={"path": str(path)}) from e
+        raise RecipeError(
+            f"Recipe validation failed: {e}", context={"path": str(path)}
+        ) from e
 
 
 def _load_recipe_recursive(
@@ -84,7 +86,8 @@ def _load_recipe_recursive(
 
     if not isinstance(recipe_dict, dict):
         raise RecipeError(
-            f"Recipe file must contain a YAML dictionary", context={"path": str(recipe_path)}
+            f"Recipe file must contain a YAML dictionary",
+            context={"path": str(recipe_path)},
         )
 
     extends = recipe_dict.get("extends")
@@ -142,4 +145,3 @@ def from_yaml(path: str, cli_vars: Dict[str, str] | None = None) -> Recipe:
         Fully resolved Recipe instance
     """
     return load_recipe(path, cli_vars)
-

@@ -140,7 +140,9 @@ class TestDeleteSemantics:
             "destination": {"merge_keys": ["id"]},
             "runtime": {"batch_size": 20000},
         }
-        result = apply_delete_semantics(recipe, ["source.port", "destination.merge_keys"])
+        result = apply_delete_semantics(
+            recipe, ["source.port", "destination.merge_keys"]
+        )
         assert "port" not in result["source"]
         assert "merge_keys" not in result["destination"]
         assert result["source"]["host"] == "localhost"
@@ -158,4 +160,3 @@ class TestDeleteSemantics:
         recipe = {"source": {"host": "localhost"}}
         result = apply_delete_semantics(recipe, [])
         assert result == recipe
-

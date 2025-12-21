@@ -8,14 +8,6 @@ This module exposes:
 
 from dataloader.connectors.base import Connector
 
-# Registry must be imported first (connector modules use decorators on import)
-from dataloader.connectors.registry import (
-    clear_registries,
-    get_connector,
-    list_connector_types,
-    register_connector,
-)
-
 # Unified connectors (register themselves via @register_connector decorator on import)
 # CSV connector removed - use FileStore connector with format="csv" instead
 # from dataloader.connectors.csv.connector import CSVConnector, create_csv_connector
@@ -30,6 +22,14 @@ from dataloader.connectors.filestore.connector import (
 from dataloader.connectors.postgres.connector import (
     PostgresConnector,
     create_postgres_connector,
+)
+
+# Registry must be imported first (connector modules use decorators on import)
+from dataloader.connectors.registry import (
+    clear_registries,
+    get_connector,
+    list_connector_types,
+    register_connector,
 )
 
 # S3 connector removed - use FileStore connector with backend="s3" instead
@@ -82,4 +82,3 @@ __all__ = [
     "create_postgres_connector",
     # "create_s3_connector",  # Removed - use FileStore connector with backend="s3" instead
 ]
-

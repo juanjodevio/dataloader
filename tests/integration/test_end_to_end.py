@@ -125,7 +125,8 @@ destination:
         """Test recipe execution with inheritance."""
         # Create base recipe
         base_recipe_path = temp_dir / "base.yaml"
-        base_recipe_path.write_text("""
+        base_recipe_path.write_text(
+            """
 name: base_recipe
 
 runtime:
@@ -136,7 +137,8 @@ transform:
     - type: add_column
       name: _source
       value: "base"
-""")
+"""
+        )
 
         # Create child recipe
         csv_path = temp_dir / "test_data.csv"
@@ -299,7 +301,8 @@ runtime:
     def test_api_from_yaml(self, temp_dir):
         """Test from_yaml API function."""
         recipe_path = temp_dir / "test.yaml"
-        recipe_path.write_text("""
+        recipe_path.write_text(
+            """
 name: api_test
 
 source:
@@ -315,7 +318,8 @@ destination:
   type: duckdb
   database: "/tmp/test.duckdb"
   table: test
-""")
+"""
+        )
 
         recipe = from_yaml(str(recipe_path))
         assert recipe.name == "api_test"
@@ -408,4 +412,3 @@ transform:
         # Load state and verify it's valid
         state_dict = state_backend.load("state_test")
         assert isinstance(state_dict, dict)
-

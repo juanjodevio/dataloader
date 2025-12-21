@@ -136,4 +136,3 @@ class TestRecipe:
         recipe = Recipe.from_dict(data)
         assert recipe.name == "test_recipe"
         assert recipe.source.type == "postgres"
-

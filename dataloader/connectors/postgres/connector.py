@@ -300,7 +300,9 @@ class PostgresConnector:
 
         try:
             conn.execute(
-                text(f"CREATE TABLE IF NOT EXISTS {self._qualified_table} ({columns_sql})")
+                text(
+                    f"CREATE TABLE IF NOT EXISTS {self._qualified_table} ({columns_sql})"
+                )
             )
         except SQLAlchemyError as e:
             raise ConnectorError(
@@ -421,4 +423,3 @@ def create_postgres_connector(
 ) -> PostgresConnector:
     """Factory function for creating PostgresConnector instances."""
     return PostgresConnector(config)
-

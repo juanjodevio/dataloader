@@ -11,11 +11,6 @@ from dataloader.api import from_yaml, run_recipe, run_recipe_from_yaml
 
 # Core classes
 from dataloader.core.batch import ArrowBatch, Batch
-from dataloader.core.state import State
-from dataloader.core.state_backend import LocalStateBackend, StateBackend
-
-# Recipe model
-from dataloader.models.recipe import Recipe
 
 # Exceptions
 from dataloader.core.exceptions import (
@@ -26,6 +21,11 @@ from dataloader.core.exceptions import (
     StateError,
     TransformError,
 )
+from dataloader.core.state import State
+from dataloader.core.state_backend import LocalStateBackend, StateBackend
+
+# Recipe model
+from dataloader.models.recipe import Recipe
 
 __all__ = [
     # Version
@@ -49,4 +49,3 @@ __all__ = [
     "StateError",
     "EngineError",
 ]
-

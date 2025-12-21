@@ -110,11 +110,10 @@ def run_recipe_from_yaml(
         >>> run_recipe_from_yaml("examples/recipes/customers.yaml", state_backend_config="s3://my-bucket/state")
     """
     recipe = from_yaml(recipe_path)
-    
+
     if state_backend_config:
         state_backend = create_state_backend(state_backend_config)
     else:
         state_backend = LocalStateBackend(state_dir)
-    
-    run_recipe(recipe, state_backend)
 
+    run_recipe(recipe, state_backend)

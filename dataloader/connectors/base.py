@@ -23,7 +23,7 @@ class Connector(Protocol):
                 # ... execute query with cursor filter
                 for chunk in self._fetch_chunks():
                     yield ArrowBatch(...)
-            
+
             def write_batch(self, batch: Batch, state: State) -> None:
                 # ... insert rows into database
                 pass
@@ -61,4 +61,3 @@ class Connector(Protocol):
             ConnectorError: If connection or write operation fails.
         """
         ...
-

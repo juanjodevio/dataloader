@@ -61,7 +61,7 @@ class ArrowBatch:
         """
         if len(table.column_names) == 0:
             raise ValueError("table cannot have zero columns")
-        
+
         self._table = table
         self._metadata = metadata or {}
 
@@ -87,7 +87,7 @@ class ArrowBatch:
         """
         if len(columns) == 0:
             raise ValueError("columns cannot be empty")
-        
+
         if rows:
             # Validate row lengths
             for i, row in enumerate(rows):
@@ -95,11 +95,11 @@ class ArrowBatch:
                     raise ValueError(
                         f"Row {i} length {len(row)} does not match column count {len(columns)}"
                     )
-            
+
             # Convert rows (list of lists) to list of dicts for PyArrow
             # Each row becomes a dict with column names as keys
             row_dicts = [dict(zip(columns, row)) for row in rows]
-            
+
             # Create Arrow table from list of dicts (PyArrow infers types)
             table = pa.Table.from_pylist(row_dicts, schema=None)
         else:
@@ -107,7 +107,7 @@ class ArrowBatch:
             # Use pa.null() type as placeholder (will be inferred on first data)
             empty_arrays = [pa.array([], type=pa.null()) for _ in columns]
             table = pa.Table.from_arrays(empty_arrays, names=columns)
-        
+
         return cls(table, metadata)
 
     @property
@@ -123,7 +123,7 @@ class ArrowBatch:
         """
         # Convert to list of dicts first (PyArrow's efficient method)
         dict_list = self._table.to_pylist()
-        
+
         # Convert list of dicts to list of lists in column order
         column_names = self.columns
         return [[row[col] for col in column_names] for row in dict_list]

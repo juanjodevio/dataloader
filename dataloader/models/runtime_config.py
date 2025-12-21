@@ -6,9 +6,7 @@ from pydantic import BaseModel, Field, field_validator
 class RuntimeConfig(BaseModel):
     """Configuration for runtime behavior."""
 
-    batch_size: int = Field(
-        default=10000, description="Number of rows per batch", gt=0
-    )
+    batch_size: int = Field(default=10000, description="Number of rows per batch", gt=0)
     parallelism: int = Field(
         default=1,
         description="Number of parallel workers for batch processing (1 = sequential)",
@@ -30,4 +28,3 @@ class RuntimeConfig(BaseModel):
         if v < 1:
             raise ValueError("parallelism must be at least 1")
         return v
-

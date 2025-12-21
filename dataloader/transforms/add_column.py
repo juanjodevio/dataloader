@@ -87,10 +87,10 @@ class AddColumnTransform:
 
         # Create a new column array with constant value for all rows
         num_rows = len(arrow_table)
-        
+
         # Infer Arrow type from the value
         arrow_type = self._infer_arrow_type(resolved_value)
-        
+
         # Create array with constant value
         if resolved_value is None:
             new_array = pa.nulls(num_rows, type=arrow_type)
@@ -161,4 +161,3 @@ class AddColumnTransform:
 def create_add_column_transform(config: dict[str, Any]) -> AddColumnTransform:
     """Factory function for AddColumnTransform."""
     return AddColumnTransform(config)
-

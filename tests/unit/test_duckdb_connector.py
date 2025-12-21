@@ -5,7 +5,10 @@ from pathlib import Path
 
 import pytest
 
-from dataloader.connectors.duckdb.connector import DuckDBConnector, create_duckdb_connector
+from dataloader.connectors.duckdb.connector import (
+    DuckDBConnector,
+    create_duckdb_connector,
+)
 from dataloader.core.batch import ArrowBatch
 from dataloader.core.exceptions import ConnectorError
 from dataloader.core.state import State
@@ -345,7 +348,13 @@ class TestDuckDBIntegration:
                     [i * 2, "click", f"2024-01-{i+1:02d}"],
                     [i * 2 + 1, "view", f"2024-01-{i+1:02d}"],
                 ],
-                metadata={"column_types": {"event_id": "int", "event_type": "string", "timestamp": "string"}},
+                metadata={
+                    "column_types": {
+                        "event_id": "int",
+                        "event_type": "string",
+                        "timestamp": "string",
+                    }
+                },
             )
             connector.write_batch(batch, state)
 
@@ -355,7 +364,9 @@ class TestDuckDBIntegration:
         assert result[0] == 6
 
         # Verify ordering
-        result = conn.execute("SELECT event_id FROM events ORDER BY event_id").fetchall()
+        result = conn.execute(
+            "SELECT event_id FROM events ORDER BY event_id"
+        ).fetchall()
         assert [r[0] for r in result] == [0, 1, 2, 3, 4, 5]
 
         connector.close()
@@ -396,4 +407,3 @@ class TestDuckDBIntegration:
         assert result[0] == 3
 
         connector2.close()
-

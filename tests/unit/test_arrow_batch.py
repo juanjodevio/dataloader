@@ -2,8 +2,8 @@
 
 from datetime import date, datetime
 
-import pytest
 import pyarrow as pa
+import pytest
 
 from dataloader.core.batch import ArrowBatch, Batch
 
@@ -13,11 +13,13 @@ class TestArrowBatch:
 
     def test_init_from_table(self):
         """Test ArrowBatch creation from Arrow table."""
-        table = pa.table({
-            "id": [1, 2, 3],
-            "name": ["Alice", "Bob", "Charlie"],
-            "age": [25, 30, 35],
-        })
+        table = pa.table(
+            {
+                "id": [1, 2, 3],
+                "name": ["Alice", "Bob", "Charlie"],
+                "age": [25, 30, 35],
+            }
+        )
         metadata = {"source": "test"}
 
         batch = ArrowBatch(table, metadata)
@@ -273,4 +275,3 @@ class TestArrowBatch:
         _ = batch.metadata
         _ = batch.row_count
         _ = batch.to_dict()
-

@@ -44,4 +44,3 @@ class TestTransformConfig:
         assert len(config.steps) == 2
         assert config.steps[0].type == "rename_columns"
         assert config.steps[1].type == "add_column"
-

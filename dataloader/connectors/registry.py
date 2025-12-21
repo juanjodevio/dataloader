@@ -32,7 +32,9 @@ _connector_registry: dict[str, ConnectorFactory] = {}
 
 
 @overload
-def register_connector(connector_type: str) -> Callable[[ConnectorFactory], ConnectorFactory]: ...
+def register_connector(
+    connector_type: str,
+) -> Callable[[ConnectorFactory], ConnectorFactory]: ...
 
 
 @overload
@@ -116,4 +118,3 @@ def list_connector_types() -> list[str]:
 def clear_registries() -> None:
     """Clear all registered connectors. Intended for testing only."""
     _connector_registry.clear()
-

@@ -29,7 +29,9 @@ _transform_registry: dict[str, TransformFactory] = {}
 
 
 @overload
-def register_transform(transform_type: str) -> Callable[[TransformFactory], TransformFactory]: ...
+def register_transform(
+    transform_type: str,
+) -> Callable[[TransformFactory], TransformFactory]: ...
 
 
 @overload
@@ -110,4 +112,3 @@ def list_transform_types() -> list[str]:
 def clear_registry() -> None:
     """Clear all registered transforms. Intended for testing only."""
     _transform_registry.clear()
-

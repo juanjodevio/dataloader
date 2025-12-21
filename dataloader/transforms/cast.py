@@ -68,9 +68,7 @@ class CastColumnsTransform:
     def _validate_types(self, columns: dict[str, str]) -> None:
         """Validate all specified types are supported."""
         invalid_types = [
-            (col, typ)
-            for col, typ in columns.items()
-            if typ not in _TYPE_CONVERTERS
+            (col, typ) for col, typ in columns.items() if typ not in _TYPE_CONVERTERS
         ]
         if invalid_types:
             raise TransformError(
@@ -116,9 +114,15 @@ class CastColumnsTransform:
                 except ValueError as e:
                     raise TransformError(
                         f"Unsupported type for casting: {target_type_str}",
-                        context={"column": col_name, "target_type": target_type_str, "error": str(e)},
+                        context={
+                            "column": col_name,
+                            "target_type": target_type_str,
+                            "error": str(e),
+                        },
                     ) from e
-                new_fields.append(pa.field(col_name, target_arrow_type, nullable=field.nullable))
+                new_fields.append(
+                    pa.field(col_name, target_arrow_type, nullable=field.nullable)
+                )
             else:
                 new_fields.append(field)
 
@@ -141,7 +145,6 @@ class CastColumnsTransform:
             metadata=batch.metadata.copy(),
         )
 
-
     def _validate_columns_exist(self, columns: list[str]) -> None:
         """Validate all target columns exist in batch."""
         column_set = set(columns)
@@ -160,4 +163,3 @@ class CastColumnsTransform:
 def create_cast_transform(config: dict[str, Any]) -> CastColumnsTransform:
     """Factory function for CastColumnsTransform."""
     return CastColumnsTransform(config)
-

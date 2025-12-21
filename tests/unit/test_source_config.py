@@ -141,7 +141,9 @@ class TestSourceConfig:
             user="testuser",
             password="testpass",
             table="public.users",
-            incremental=IncrementalConfig(strategy="cursor", cursor_column="updated_at"),
+            incremental=IncrementalConfig(
+                strategy="cursor", cursor_column="updated_at"
+            ),
         )
         assert config.incremental is not None
         assert config.incremental.strategy == "cursor"
@@ -161,4 +163,3 @@ class TestSourceConfig:
         )
         assert config.port is None
         assert config.db_schema is None
-

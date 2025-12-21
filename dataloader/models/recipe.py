@@ -44,4 +44,3 @@ class Recipe(BaseModel):
         from dataloader.models.loader import load_recipe
 
         return load_recipe(path, cli_vars)
-

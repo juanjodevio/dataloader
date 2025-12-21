@@ -14,7 +14,9 @@ class TransformStep(BaseModel):
 
     model_config = ConfigDict(extra="allow")
 
-    type: str = Field(description="Transform type (e.g., 'rename_columns', 'cast', 'add_column')")
+    type: str = Field(
+        description="Transform type (e.g., 'rename_columns', 'cast', 'add_column')"
+    )
 
 
 class TransformConfig(BaseModel):
@@ -23,4 +25,3 @@ class TransformConfig(BaseModel):
     steps: List[TransformStep] = Field(
         default_factory=list, description="List of transform steps to apply"
     )
-

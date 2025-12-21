@@ -11,4 +11,3 @@ __all__ = [
     "DuckDBConnectorConfig",
     "create_duckdb_connector",
 ]
-

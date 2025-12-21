@@ -50,7 +50,7 @@ def cli_vars():
 @pytest.fixture
 def simple_batch():
     """Create a simple ArrowBatch for connector testing.
-    
+
     Returns an ArrowBatch with id and name columns - commonly used across connector tests.
     """
     return ArrowBatch.from_rows(
@@ -58,4 +58,3 @@ def simple_batch():
         rows=[[1, "Alice"], [2, "Bob"]],
         metadata={},
     )
-

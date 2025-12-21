@@ -147,7 +147,9 @@ class TestConnectorProtocol:
 
         assert len(batches) == 1
         # Read-only connector should not have write_batch
-        assert not hasattr(connector, "write_batch") or not callable(getattr(connector, "write_batch", None))
+        assert not hasattr(connector, "write_batch") or not callable(
+            getattr(connector, "write_batch", None)
+        )
 
     def test_write_only_connector(self):
         """Test that write-only connector works correctly."""
@@ -166,7 +168,9 @@ class TestConnectorProtocol:
 
         assert len(connector.written_batches) == 1
         # Write-only connector should not have read_batches
-        assert not hasattr(connector, "read_batches") or not callable(getattr(connector, "read_batches", None))
+        assert not hasattr(connector, "read_batches") or not callable(
+            getattr(connector, "read_batches", None)
+        )
 
 
 class TestConnectorRegistry:
@@ -219,7 +223,13 @@ class TestConnectorRegistry:
         """Test that error message includes available connector types."""
         register_connector("postgres", create_mock_connector)
         register_connector("duckdb", create_mock_connector)
-        config = SourceConfig(type="postgres", host="localhost", database="test", user="user", table="users")
+        config = SourceConfig(
+            type="postgres",
+            host="localhost",
+            database="test",
+            user="user",
+            table="users",
+        )
 
         with pytest.raises(ConnectorError) as exc_info:
             get_connector("unknown", config)

@@ -7,7 +7,9 @@ from typing import Any, Dict
 from dataloader.core.exceptions import RecipeError
 
 
-def render_templates(recipe_dict: Dict[str, Any], cli_vars: Dict[str, str] | None = None) -> Dict[str, Any]:
+def render_templates(
+    recipe_dict: Dict[str, Any], cli_vars: Dict[str, str] | None = None
+) -> Dict[str, Any]:
     """
     Render Jinja2-style templates in recipe dictionary.
 
@@ -115,4 +117,3 @@ def _render_string(text: str, context: Dict[str, Any]) -> str:
             ) from e
 
     return re.sub(pattern, replace, text)
-

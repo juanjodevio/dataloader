@@ -43,11 +43,18 @@ from dataloader.core.state_backend import LocalStateBackend, create_state_backen
     is_flag=True,
     help="Use JSON format for logs",
 )
-def run(recipe_path: str, state_dir: str, state_backend: str | None, vars: tuple, log_level: str, json_logs: bool):
+def run(
+    recipe_path: str,
+    state_dir: str,
+    state_backend: str | None,
+    vars: tuple,
+    log_level: str,
+    json_logs: bool,
+):
     """Run a recipe to load data from source to destination.
-    
+
     Examples:
-    
+
         dataloader run recipe.yaml
         dataloader run recipe.yaml --state-dir /tmp/state
         dataloader run recipe.yaml --state-backend s3://my-bucket/state
@@ -56,32 +63,35 @@ def run(recipe_path: str, state_dir: str, state_backend: str | None, vars: tuple
     """
     # Configure logging
     configure_logging(level=log_level, json_format=json_logs)
-    
+
     try:
         # Parse CLI variables
         cli_vars = {}
         for var in vars:
             if "=" not in var:
-                click.echo(f"Error: Invalid variable format: {var}. Use key=value", err=True)
+                click.echo(
+                    f"Error: Invalid variable format: {var}. Use key=value", err=True
+                )
                 sys.exit(1)
             key, value = var.split("=", 1)
             cli_vars[key] = value
-        
+
         # Load recipe
         from dataloader.models.loader import load_recipe
+
         recipe = load_recipe(recipe_path, cli_vars=cli_vars if cli_vars else None)
-        
+
         # Create state backend
         if state_backend:
             backend = create_state_backend(state_backend)
         else:
             backend = LocalStateBackend(state_dir)
-        
+
         # Run recipe
         click.echo(f"Running recipe: {recipe.name}")
         run_recipe(recipe, backend)
         click.echo("Recipe execution completed successfully")
-        
+
     except RecipeError as e:
         click.echo(f"Recipe error: {e}", err=True)
         sys.exit(1)
@@ -91,4 +101,3 @@ def run(recipe_path: str, state_dir: str, state_backend: str | None, vars: tuple
     except Exception as e:
         click.echo(f"Unexpected error: {e}", err=True)
         sys.exit(1)
-

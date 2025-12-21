@@ -484,4 +484,3 @@ def create_state_backend(config: str) -> StateBackend:
             f"Invalid state backend config: {config}. "
             f"Supported formats: 'local[:path]', 's3://bucket/prefix', 'dynamodb:table[:region]'"
         )
-

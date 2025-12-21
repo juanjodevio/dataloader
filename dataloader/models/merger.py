@@ -23,7 +23,7 @@ def merge_recipes(parent: Dict[str, Any], child: Dict[str, Any]) -> Dict[str, An
         Merged recipe dictionary
     """
     result = parent.copy()
-    
+
     child_delete = child.get("delete")
     if child_delete is not None:
         result["delete"] = child_delete
@@ -65,7 +65,9 @@ def _merge_transform_config(
     return merged
 
 
-def apply_delete_semantics(recipe: Dict[str, Any], delete_paths: List[str]) -> Dict[str, Any]:
+def apply_delete_semantics(
+    recipe: Dict[str, Any], delete_paths: List[str]
+) -> Dict[str, Any]:
     """
     Apply delete semantics to remove specified keys from recipe.
 
@@ -98,4 +100,3 @@ def _delete_path(data: Dict[str, Any], path: str) -> None:
 
     if parts[-1] in current:
         del current[parts[-1]]
-

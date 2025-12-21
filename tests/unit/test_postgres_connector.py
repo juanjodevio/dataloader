@@ -6,7 +6,10 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from dataloader.connectors.postgres.connector import PostgresConnector, create_postgres_connector
+from dataloader.connectors.postgres.connector import (
+    PostgresConnector,
+    create_postgres_connector,
+)
 from dataloader.core.batch import ArrowBatch
 from dataloader.core.exceptions import ConnectorError
 from dataloader.core.state import State
@@ -65,7 +68,9 @@ class TestPostgresConnector:
         assert "testuser:testpass@" in url
         assert "localhost:5432/testdb" in url
 
-    def test_postgres_connection_url_without_password(self, postgres_config: SourceConfig):
+    def test_postgres_connection_url_without_password(
+        self, postgres_config: SourceConfig
+    ):
         """Test connection URL building without password."""
         postgres_config.password = None
         connector = PostgresConnector(postgres_config)
@@ -74,7 +79,9 @@ class TestPostgresConnector:
         assert "testuser@localhost" in url
         assert ":testpass" not in url
 
-    def test_postgres_connection_url_custom_dialect(self, postgres_config: SourceConfig):
+    def test_postgres_connection_url_custom_dialect(
+        self, postgres_config: SourceConfig
+    ):
         """Test connection URL with custom dialect (via config)."""
         # Note: Dialect is now fixed to postgresql+psycopg2 in PostgresConnector
         # This test verifies the default dialect
@@ -119,7 +126,7 @@ class TestPostgresConnector:
     ):
         """Test reading batches from Postgres using SQLAlchemy."""
         import pandas as pd
-        
+
         # Setup mock engine
         mock_engine = MagicMock()
         mock_create_engine.return_value = mock_engine
@@ -133,10 +140,7 @@ class TestPostgresConnector:
         ]
 
         # Setup mock pandas DataFrame from read_sql
-        mock_df = pd.DataFrame({
-            "id": [1, 2],
-            "name": ["Alice", "Bob"]
-        })
+        mock_df = pd.DataFrame({"id": [1, 2], "name": ["Alice", "Bob"]})
         # Mock read_sql to return an iterator (chunksize behavior)
         mock_read_sql.return_value = iter([mock_df])
 
@@ -228,4 +232,3 @@ class TestPostgresConnectorRegistration:
         connector = get_connector("postgres", config)
 
         assert isinstance(connector, PostgresConnector)
-

@@ -30,4 +30,3 @@ class TestRuntimeConfig:
         """Test that batch_size cannot be negative."""
         with pytest.raises(ValidationError):
             RuntimeConfig(batch_size=-1)
-

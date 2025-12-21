@@ -21,7 +21,6 @@ from dataloader.transforms import (
     register_transform,
 )
 
-
 # ============================================================================
 # Fixtures
 # ============================================================================
@@ -132,9 +131,9 @@ class TestRenameColumnsTransform:
 
     def test_rename_multiple_columns(self, sample_batch):
         """Should rename multiple columns."""
-        transform = RenameColumnsTransform({
-            "mapping": {"name": "full_name", "age": "years"}
-        })
+        transform = RenameColumnsTransform(
+            {"mapping": {"name": "full_name", "age": "years"}}
+        )
         result = transform.apply(sample_batch)
 
         assert result.columns == ["id", "full_name", "years", "created_at"]
@@ -230,9 +229,9 @@ class TestCastColumnsTransform:
 
     def test_cast_multiple_columns(self, sample_batch):
         """Should cast multiple columns."""
-        transform = CastColumnsTransform({
-            "columns": {"age": "int", "created_at": "datetime"}
-        })
+        transform = CastColumnsTransform(
+            {"columns": {"age": "int", "created_at": "datetime"}}
+        )
         result = transform.apply(sample_batch)
 
         assert isinstance(result.rows[0][2], int)
@@ -362,21 +361,25 @@ class TestAddColumnTransform:
 
     def test_template_recipe_name(self, sample_batch):
         """Should render recipe.name template when context provided."""
-        transform = AddColumnTransform({
-            "name": "recipe",
-            "value": "{{ recipe.name }}",
-            "context": {"recipe": {"name": "my_recipe"}},
-        })
+        transform = AddColumnTransform(
+            {
+                "name": "recipe",
+                "value": "{{ recipe.name }}",
+                "context": {"recipe": {"name": "my_recipe"}},
+            }
+        )
         result = transform.apply(sample_batch)
 
         assert all(row[-1] == "my_recipe" for row in result.rows)
 
     def test_template_without_context_returns_original(self, sample_batch):
         """Template without context should return original string."""
-        transform = AddColumnTransform({
-            "name": "template",
-            "value": "{{ recipe.name }}",
-        })
+        transform = AddColumnTransform(
+            {
+                "name": "template",
+                "value": "{{ recipe.name }}",
+            }
+        )
         result = transform.apply(sample_batch)
 
         assert all(row[-1] == "{{ recipe.name }}" for row in result.rows)
@@ -409,9 +412,9 @@ class TestTransformPipeline:
 
     def test_single_step(self, sample_batch):
         """Pipeline with single step should apply it."""
-        config = TransformConfig(steps=[
-            TransformStep(type="rename_columns", mapping={"name": "full_name"})
-        ])
+        config = TransformConfig(
+            steps=[TransformStep(type="rename_columns", mapping={"name": "full_name"})]
+        )
         pipeline = TransformPipeline(config)
         result = pipeline.apply(sample_batch)
 
@@ -420,11 +423,13 @@ class TestTransformPipeline:
 
     def test_multiple_steps_sequential(self, sample_batch):
         """Pipeline should apply steps in order."""
-        config = TransformConfig(steps=[
-            TransformStep(type="rename_columns", mapping={"name": "full_name"}),
-            TransformStep(type="cast", columns={"age": "int"}),
-            TransformStep(type="add_column", name="status", value="active"),
-        ])
+        config = TransformConfig(
+            steps=[
+                TransformStep(type="rename_columns", mapping={"name": "full_name"}),
+                TransformStep(type="cast", columns={"age": "int"}),
+                TransformStep(type="add_column", name="status", value="active"),
+            ]
+        )
         pipeline = TransformPipeline(config)
         result = pipeline.apply(sample_batch)
 
@@ -434,10 +439,12 @@ class TestTransformPipeline:
 
     def test_preserves_metadata_through_pipeline(self, sample_batch):
         """Metadata should be preserved through multiple steps."""
-        config = TransformConfig(steps=[
-            TransformStep(type="rename_columns", mapping={"name": "full_name"}),
-            TransformStep(type="add_column", name="status", value="active"),
-        ])
+        config = TransformConfig(
+            steps=[
+                TransformStep(type="rename_columns", mapping={"name": "full_name"}),
+                TransformStep(type="add_column", name="status", value="active"),
+            ]
+        )
         pipeline = TransformPipeline(config)
         result = pipeline.apply(sample_batch)
 
@@ -445,10 +452,12 @@ class TestTransformPipeline:
 
     def test_error_includes_step_context(self, sample_batch):
         """Transform error should include step index."""
-        config = TransformConfig(steps=[
-            TransformStep(type="rename_columns", mapping={"name": "full_name"}),
-            TransformStep(type="cast", columns={"nonexistent": "int"}),
-        ])
+        config = TransformConfig(
+            steps=[
+                TransformStep(type="rename_columns", mapping={"name": "full_name"}),
+                TransformStep(type="cast", columns={"nonexistent": "int"}),
+            ]
+        )
         pipeline = TransformPipeline(config)
 
         with pytest.raises(TransformError) as exc_info:
@@ -459,9 +468,7 @@ class TestTransformPipeline:
 
     def test_unknown_transform_type_raises(self, sample_batch):
         """Unknown transform type should raise TransformError."""
-        config = TransformConfig(steps=[
-            TransformStep(type="unknown_transform_xyz")
-        ])
+        config = TransformConfig(steps=[TransformStep(type="unknown_transform_xyz")])
         pipeline = TransformPipeline(config)
 
         with pytest.raises(TransformError) as exc_info:
@@ -476,11 +483,15 @@ class TestTransformPipeline:
             rows=[["value"]],
             metadata={},
         )
-        config = TransformConfig(steps=[
-            TransformStep(type="rename_columns", mapping={"old_name": "new_name"}),
-            # This would fail if it still had 'old_name'
-            TransformStep(type="rename_columns", mapping={"new_name": "final_name"}),
-        ])
+        config = TransformConfig(
+            steps=[
+                TransformStep(type="rename_columns", mapping={"old_name": "new_name"}),
+                # This would fail if it still had 'old_name'
+                TransformStep(
+                    type="rename_columns", mapping={"new_name": "final_name"}
+                ),
+            ]
+        )
         pipeline = TransformPipeline(config)
         result = pipeline.apply(batch)
 
@@ -508,30 +519,32 @@ class TestTransformIntegration:
         )
 
         # Pipeline: rename -> cast -> add metadata column
-        config = TransformConfig(steps=[
-            TransformStep(
-                type="rename_columns",
-                mapping={
-                    "user_id": "id",
-                    "user_name": "name",
-                    "age_str": "age",
-                    "signup_date": "created_at",
-                }
-            ),
-            TransformStep(
-                type="cast",
-                columns={
-                    "id": "int",
-                    "age": "int",
-                    "created_at": "datetime",
-                }
-            ),
-            TransformStep(
-                type="add_column",
-                name="processed",
-                value=True,
-            ),
-        ])
+        config = TransformConfig(
+            steps=[
+                TransformStep(
+                    type="rename_columns",
+                    mapping={
+                        "user_id": "id",
+                        "user_name": "name",
+                        "age_str": "age",
+                        "signup_date": "created_at",
+                    },
+                ),
+                TransformStep(
+                    type="cast",
+                    columns={
+                        "id": "int",
+                        "age": "int",
+                        "created_at": "datetime",
+                    },
+                ),
+                TransformStep(
+                    type="add_column",
+                    name="processed",
+                    value=True,
+                ),
+            ]
+        )
 
         pipeline = TransformPipeline(config)
         result = pipeline.apply(batch)
@@ -552,4 +565,3 @@ class TestTransformIntegration:
         # Verify metadata preserved
         assert result.metadata["batch_id"] == "001"
         assert result.metadata["source"] == "postgres"
-

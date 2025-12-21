@@ -1,8 +1,9 @@
 """Integration tests for recipe loading with real YAML files."""
 
 import os
-import pytest
 from pathlib import Path
+
+import pytest
 
 from dataloader.models import Recipe
 
@@ -13,7 +14,12 @@ class TestRecipeLoadingIntegration:
 
     def test_load_example_recipe(self):
         """Test loading an example recipe from examples/recipes."""
-        recipe_path = Path(__file__).parent.parent.parent / "examples" / "recipes" / "test_recipe.yaml"
+        recipe_path = (
+            Path(__file__).parent.parent.parent
+            / "examples"
+            / "recipes"
+            / "test_recipe.yaml"
+        )
         recipe = Recipe.from_yaml(str(recipe_path))
         assert recipe.name == "test_recipe"
         assert recipe.source.type == "postgres"
@@ -22,8 +28,18 @@ class TestRecipeLoadingIntegration:
 
     def test_load_recipe_with_inheritance(self):
         """Test loading recipe with inheritance from examples."""
-        base_path = Path(__file__).parent.parent.parent / "examples" / "recipes" / "base_recipe.yaml"
-        child_path = Path(__file__).parent.parent.parent / "examples" / "recipes" / "child_recipe.yaml"
+        base_path = (
+            Path(__file__).parent.parent.parent
+            / "examples"
+            / "recipes"
+            / "base_recipe.yaml"
+        )
+        child_path = (
+            Path(__file__).parent.parent.parent
+            / "examples"
+            / "recipes"
+            / "child_recipe.yaml"
+        )
 
         # Set environment variable for template rendering
         os.environ["SOURCE_HOST"] = "localhost"
@@ -43,7 +59,12 @@ class TestRecipeLoadingIntegration:
         monkeypatch.setenv("DEST_USER", "dest_user")
         monkeypatch.setenv("DEST_PASSWORD", "dest_pass")
 
-        recipe_path = Path(__file__).parent.parent.parent / "examples" / "recipes" / "test_credentials.yaml"
+        recipe_path = (
+            Path(__file__).parent.parent.parent
+            / "examples"
+            / "recipes"
+            / "test_credentials.yaml"
+        )
         recipe = Recipe.from_yaml(
             str(recipe_path),
             cli_vars={"SOURCE_DB": "cli_db", "DEST_DB": "cli_dest_db"},
@@ -54,7 +75,11 @@ class TestRecipeLoadingIntegration:
 
     def test_delete_semantics_integration(self):
         """Test delete semantics with real recipe files."""
-        recipe_path = Path(__file__).parent.parent.parent / "examples" / "recipes" / "delete_test.yaml"
+        recipe_path = (
+            Path(__file__).parent.parent.parent
+            / "examples"
+            / "recipes"
+            / "delete_test.yaml"
+        )
         recipe = Recipe.from_yaml(str(recipe_path))
         assert len(recipe.transform.steps) == 0
-

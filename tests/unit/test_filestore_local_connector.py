@@ -7,11 +7,11 @@ from tempfile import TemporaryDirectory
 
 import pytest
 
+from dataloader.connectors.filestore.config import LocalFileStoreConfig
 from dataloader.connectors.filestore.connector import (
     FileStoreConnector,
     create_filestore_connector,
 )
-from dataloader.connectors.filestore.config import LocalFileStoreConfig
 from dataloader.core.batch import ArrowBatch
 from dataloader.core.exceptions import ConnectorError
 from dataloader.core.state import State
@@ -44,10 +44,14 @@ class TestFileStoreLocalConnector:
                 [2, "Bob", 87.0],
                 [3, "Charlie", 92.3],
             ],
-            metadata={"column_types": {"id": "int", "name": "string", "score": "float"}},
+            metadata={
+                "column_types": {"id": "int", "name": "string", "score": "float"}
+            },
         )
 
-    def test_filestore_connector_initialization(self, local_config: LocalFileStoreConfig):
+    def test_filestore_connector_initialization(
+        self, local_config: LocalFileStoreConfig
+    ):
         """Test that FileStoreConnector initializes correctly."""
         connector = FileStoreConnector(local_config)
 
@@ -59,7 +63,9 @@ class TestFileStoreLocalConnector:
         assert connector._encoding == "utf-8"
         assert connector._filesystem is None
 
-    def test_filestore_write_csv_append(self, local_config: LocalFileStoreConfig, sample_batch: ArrowBatch):
+    def test_filestore_write_csv_append(
+        self, local_config: LocalFileStoreConfig, sample_batch: ArrowBatch
+    ):
         """Test writing CSV files in append mode."""
         connector = FileStoreConnector(local_config)
         state = State()
@@ -83,7 +89,9 @@ class TestFileStoreLocalConnector:
         assert rows[0]["name"] == "Alice"
         assert rows[0]["score"] == "95.5"
 
-    def test_filestore_write_csv_overwrite(self, local_config: LocalFileStoreConfig, sample_batch: ArrowBatch, simple_batch):
+    def test_filestore_write_csv_overwrite(
+        self, local_config: LocalFileStoreConfig, sample_batch: ArrowBatch, simple_batch
+    ):
         """Test writing CSV files in overwrite mode."""
         local_config.write_mode = "overwrite"
         connector = FileStoreConnector(local_config)
@@ -105,10 +113,12 @@ class TestFileStoreLocalConnector:
         csv_files = list(test_dir.glob("*.csv"))
         assert len(csv_files) >= 2
 
-    def test_filestore_write_csv_overwrite_deletes_existing(self, local_config: LocalFileStoreConfig):
+    def test_filestore_write_csv_overwrite_deletes_existing(
+        self, local_config: LocalFileStoreConfig
+    ):
         """Test that overwrite mode deletes existing files."""
         test_dir = Path(local_config.path)
-        
+
         # Create existing CSV file
         existing_file = test_dir / "existing_data.csv"
         with open(existing_file, "w", encoding="utf-8") as f:
@@ -130,7 +140,9 @@ class TestFileStoreLocalConnector:
         # Existing file should be deleted
         assert not existing_file.exists()
 
-    def test_filestore_write_json(self, local_config: LocalFileStoreConfig, sample_batch: ArrowBatch):
+    def test_filestore_write_json(
+        self, local_config: LocalFileStoreConfig, sample_batch: ArrowBatch
+    ):
         """Test writing JSON files."""
         local_config.format = "json"
         connector = FileStoreConnector(local_config)
@@ -152,7 +164,9 @@ class TestFileStoreLocalConnector:
         assert data[0]["id"] == 1
         assert data[0]["name"] == "Alice"
 
-    def test_filestore_write_jsonl(self, local_config: LocalFileStoreConfig, sample_batch: ArrowBatch):
+    def test_filestore_write_jsonl(
+        self, local_config: LocalFileStoreConfig, sample_batch: ArrowBatch
+    ):
         """Test writing JSONL files."""
         local_config.format = "jsonl"
         connector = FileStoreConnector(local_config)
@@ -267,7 +281,9 @@ class TestFileStoreLocalConnector:
         batch = batches[0]
         assert len(batch.rows) >= 2
 
-    def test_filestore_read_incremental_filtering(self, local_config: LocalFileStoreConfig):
+    def test_filestore_read_incremental_filtering(
+        self, local_config: LocalFileStoreConfig
+    ):
         """Test incremental reading with state filtering."""
         test_dir = Path(local_config.path)
 
@@ -320,7 +336,9 @@ class TestFileStoreLocalConnector:
 
         assert len(connector.written_files) == 0
 
-    def test_filestore_merge_mode_raises_error(self, local_config: LocalFileStoreConfig, sample_batch: ArrowBatch):
+    def test_filestore_merge_mode_raises_error(
+        self, local_config: LocalFileStoreConfig, sample_batch: ArrowBatch
+    ):
         """Test that merge mode raises ConnectorError."""
         local_config.write_mode = "merge"
         connector = FileStoreConnector(local_config)
@@ -389,7 +407,9 @@ class TestFileStoreLocalConnector:
 
         assert connector._backend == "local"
 
-    def test_create_filestore_connector_factory(self, local_config: LocalFileStoreConfig):
+    def test_create_filestore_connector_factory(
+        self, local_config: LocalFileStoreConfig
+    ):
         """Test the factory function creates FileStoreConnector."""
         connector = create_filestore_connector(local_config)
         assert isinstance(connector, FileStoreConnector)
@@ -556,4 +576,3 @@ class TestFileStoreIntegration:
         # Verify all files were created
         csv_files = list(test_dir.glob("*.csv"))
         assert len(csv_files) == 3
-

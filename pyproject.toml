@@ -73,5 +73,11 @@ markers = [
     "slow: Slow running tests",
 ]
 
+[dependency-groups]
+dev = [
+    "black>=25.11.0",
+    "isort>=6.1.0",
+]
+
 [project.scripts]
 dataloader = "dataloader.cli.main:main"

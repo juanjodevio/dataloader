@@ -18,4 +18,3 @@ __all__ = [
     "load_recipe",
     "from_yaml",
 ]
-

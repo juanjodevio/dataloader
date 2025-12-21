@@ -1,8 +1,9 @@
 """Tests for recipe loader."""
 
+from pathlib import Path
+
 import pytest
 import yaml
-from pathlib import Path
 
 from dataloader.core.exceptions import RecipeError
 from dataloader.models.loader import load_recipe
@@ -311,4 +312,3 @@ destination:
 
         recipe = load_recipe(str(recipe_file), cli_vars={"DB_NAME": "cli_database"})
         assert recipe.source.database == "cli_database"
-

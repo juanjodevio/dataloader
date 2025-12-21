@@ -57,23 +57,20 @@ class StructuredFormatter(logging.Formatter):
         """Format log record with context."""
         # Extract context from extra dict
         context = getattr(record, "context", {})
-        
+
         # Build message parts
         parts = [f"[{record.levelname}]"]
-        
+
         if hasattr(record, "recipe_name"):
             parts.append(f"recipe={record.recipe_name}")
-        
+
         if hasattr(record, "batch_id"):
             parts.append(f"batch={record.batch_id}")
-        
+
         # Add any additional context
         for key, value in context.items():
             parts.append(f"{key}={value}")
-        
+
         parts.append(record.getMessage())
-        
+
         return " ".join(parts)
-
-
-

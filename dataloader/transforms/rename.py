@@ -63,9 +63,7 @@ class RenameColumnsTransform:
         arrow_table = batch.to_arrow()
 
         # Build new column names (apply mapping)
-        new_columns = [
-            self._mapping.get(col, col) for col in batch.columns
-        ]
+        new_columns = [self._mapping.get(col, col) for col in batch.columns]
 
         # Use Arrow's native rename_columns for zero-copy operation
         renamed_table = arrow_table.rename_columns(new_columns)
@@ -93,4 +91,3 @@ class RenameColumnsTransform:
 def create_rename_transform(config: dict[str, Any]) -> RenameColumnsTransform:
     """Factory function for RenameColumnsTransform."""
     return RenameColumnsTransform(config)
-

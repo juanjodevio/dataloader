@@ -100,7 +100,7 @@ class FileStoreConnector:
         # Check explicit backend first
         if hasattr(config, "backend") and getattr(config, "backend"):
             return getattr(config, "backend")
-        
+
         # Infer from filepath
         filepath = getattr(config, "filepath", "") or ""
         if not filepath:
@@ -165,21 +165,21 @@ class FileStoreConnector:
 
     def _build_file_url(self, file_path: str) -> str:
         """Build full file URL for the configured backend.
-        
+
         file_path is relative to the base filepath configured in the connector.
         If file_path is already a full URL, return it as-is.
         """
         # If file_path is already a full URL, return as-is
         if file_path.startswith(("s3://", "gs://", "az://", "abfss://", "file://")):
             return file_path
-        
+
         # For S3FileStoreConfig, construct from bucket + path + file_path
         if isinstance(self._config, S3FileStoreConfig):
             bucket = self._config.bucket
             # Combine the configured path prefix with the file_path
             path_prefix = self._path.rstrip("/") if self._path else ""
             key = file_path.lstrip("/")
-            
+
             # If file_path already starts with path_prefix, don't duplicate it
             if path_prefix and key.startswith(path_prefix + "/"):
                 # file_path already includes the prefix, use it as-is
@@ -188,7 +188,7 @@ class FileStoreConnector:
                 return f"s3://{bucket}/{path_prefix}/{key}"
             else:
                 return f"s3://{bucket}/{key}"
-        
+
         # For SourceConfig/DestinationConfig, filepath already contains full path
         # file_path is relative to the base filepath, so we need to combine them
         base_path = self._path
@@ -217,19 +217,19 @@ class FileStoreConnector:
                 elif Path(base_path).is_absolute():
                     return f"file://{base_path}"
                 return base_path
-            
+
             # Check if base_path is a directory or file
             base_clean = base_path.replace("file://", "")
-            
+
             # Determine if base is directory: ends with /, has glob, or has no file extension
             valid_extensions = [".csv", ".json", ".jsonl", ".parquet"]
-            has_extension = any(base_clean.lower().endswith(ext) for ext in valid_extensions)
-            is_directory = (
-                base_path.endswith("/") 
-                or "*" in base_path
-                or not has_extension
+            has_extension = any(
+                base_clean.lower().endswith(ext) for ext in valid_extensions
             )
-            
+            is_directory = (
+                base_path.endswith("/") or "*" in base_path or not has_extension
+            )
+
             if is_directory:
                 # Base is a directory, combine with file_path
                 if base_path.startswith("file://"):
@@ -278,7 +278,7 @@ class FileStoreConnector:
     def _list_files(self) -> list[dict[str, Any]]:
         """List files in the configured path using fsspec."""
         fs = self._get_filesystem()
-        
+
         # Build the directory URL for listing files
         # For S3FileStoreConfig, construct from bucket + path directly
         if isinstance(self._config, S3FileStoreConfig):
@@ -287,7 +287,10 @@ class FileStoreConnector:
             if path_prefix:
                 # Check if path is a file (has extension) or directory
                 valid_extensions = self._format_handler.extensions
-                is_file = any(path_prefix.lower().endswith(ext.lower()) for ext in valid_extensions)
+                is_file = any(
+                    path_prefix.lower().endswith(ext.lower())
+                    for ext in valid_extensions
+                )
                 if is_file:
                     # Single file - don't add trailing slash
                     file_url = f"s3://{bucket}/{path_prefix}"
@@ -307,7 +310,10 @@ class FileStoreConnector:
                 valid_extensions = self._format_handler.extensions
                 for file_path in fs.find(file_url):
                     # Filter by format extension
-                    if any(file_path.lower().endswith(ext.lower()) for ext in valid_extensions):
+                    if any(
+                        file_path.lower().endswith(ext.lower())
+                        for ext in valid_extensions
+                    ):
                         files.append({"path": file_path, "name": Path(file_path).name})
                 return files
             else:
@@ -360,7 +366,6 @@ class FileStoreConnector:
 
         return filtered
 
-
     def read_batches(self, state: State) -> Iterable[ArrowBatch]:
         """Read files from FileStore as batches.
 
@@ -399,7 +404,9 @@ class FileStoreConnector:
                         with fs.open(file_path_str, mode="rb") as f:
                             content = f.read()
                     else:
-                        with fs.open(file_path_str, mode="r", encoding=self._encoding) as f:
+                        with fs.open(
+                            file_path_str, mode="r", encoding=self._encoding
+                        ) as f:
                             content = f.read()
 
                     # Use format handler to read batches
@@ -412,7 +419,11 @@ class FileStoreConnector:
                 except Exception as e:
                     raise ConnectorError(
                         f"Failed to read file: {e}",
-                        context={"path": file_path_str, "backend": self._backend, "format": self._format},
+                        context={
+                            "path": file_path_str,
+                            "backend": self._backend,
+                            "format": self._format,
+                        },
                     ) from e
 
         except ConnectorError:
@@ -420,14 +431,18 @@ class FileStoreConnector:
         except Exception as e:
             raise ConnectorError(
                 f"Unexpected error reading from FileStore: {e}",
-                context={"path": self._path, "backend": self._backend, "format": self._format},
+                context={
+                    "path": self._path,
+                    "backend": self._backend,
+                    "format": self._format,
+                },
             ) from e
 
     # ========== Writing methods ==========
 
     def _generate_file_path(self, batch: Batch) -> str:
         """Generate file path for the batch.
-        
+
         Returns just the filename (e.g., 'data_20241221_123456_0001.csv').
         The base path will be combined in _build_file_url.
         """
@@ -435,14 +450,18 @@ class FileStoreConnector:
         self._batch_counter += 1
 
         # Get extension from format handler (use first extension)
-        ext = self._format_handler.extensions[0] if self._format_handler.extensions else ".dat"
+        ext = (
+            self._format_handler.extensions[0]
+            if self._format_handler.extensions
+            else ".dat"
+        )
 
         return f"data_{timestamp}_{self._batch_counter:04d}{ext}"
 
     def _delete_existing_files(self) -> None:
         """Delete existing files at the destination path (for overwrite mode)."""
         fs = self._get_filesystem()
-        
+
         # Build the directory URL for listing files
         # For S3FileStoreConfig, construct from bucket + path
         if isinstance(self._config, S3FileStoreConfig):
@@ -460,7 +479,10 @@ class FileStoreConnector:
                 # List and delete all files matching the format extensions
                 valid_extensions = self._format_handler.extensions
                 for file_path in fs.find(file_url):
-                    if any(file_path.lower().endswith(ext.lower()) for ext in valid_extensions):
+                    if any(
+                        file_path.lower().endswith(ext.lower())
+                        for ext in valid_extensions
+                    ):
                         fs.rm(file_path)
             elif fs.exists(file_url):
                 # Single file, delete it
@@ -509,7 +531,11 @@ class FileStoreConnector:
         except Exception as e:
             raise ConnectorError(
                 f"Failed to write file: {e}",
-                context={"path": file_url, "backend": self._backend, "format": self._format},
+                context={
+                    "path": file_url,
+                    "backend": self._backend,
+                    "format": self._format,
+                },
             ) from e
 
     @property
@@ -524,4 +550,3 @@ def create_filestore_connector(
 ) -> FileStoreConnector:
     """Factory function for creating FileStoreConnector instances."""
     return FileStoreConnector(config)
-

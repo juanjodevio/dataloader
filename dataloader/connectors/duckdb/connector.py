@@ -199,7 +199,7 @@ class DuckDBConnector:
 
                 # Convert rows to list format
                 row_data = [list(row) for row in rows]
-                
+
                 # Create ArrowBatch from rows
                 batch_number += 1
                 batch = ArrowBatch.from_rows(
@@ -265,9 +265,7 @@ class DuckDBConnector:
         except duckdb.CatalogException:
             return set()
 
-    def _create_table(
-        self, conn: DuckDBPyConnection, batch: ArrowBatch
-    ) -> None:
+    def _create_table(self, conn: DuckDBPyConnection, batch: ArrowBatch) -> None:
         """Create table from batch schema if it doesn't exist."""
         # Get Arrow schema to determine column types
         arrow_table = batch.to_arrow()
@@ -292,9 +290,7 @@ class DuckDBConnector:
                 context={"table": self._table, "columns": batch.columns},
             ) from e
 
-    def _add_missing_columns(
-        self, conn: DuckDBPyConnection, batch: ArrowBatch
-    ) -> None:
+    def _add_missing_columns(self, conn: DuckDBPyConnection, batch: ArrowBatch) -> None:
         """Add columns that exist in batch but not in table (schema evolution)."""
         existing = self._get_existing_columns(conn)
         arrow_table = batch.to_arrow()
@@ -397,4 +393,3 @@ def create_duckdb_connector(
 ) -> DuckDBConnector:
     """Factory function for creating DuckDBConnector instances."""
     return DuckDBConnector(config)
-

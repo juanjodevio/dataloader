@@ -59,7 +59,9 @@ class Format(ABC):
         ...
 
     @abstractmethod
-    def write_batch(self, batch: Batch, encoding: str = "utf-8", **kwargs: Any) -> bytes:
+    def write_batch(
+        self, batch: Batch, encoding: str = "utf-8", **kwargs: Any
+    ) -> bytes:
         """Convert a batch to file content in this format.
 
         Args:
@@ -217,7 +219,9 @@ class CSVFormat(Format):
                 },
             )
 
-    def write_batch(self, batch: Batch, encoding: str = "utf-8", **kwargs: Any) -> bytes:
+    def write_batch(
+        self, batch: Batch, encoding: str = "utf-8", **kwargs: Any
+    ) -> bytes:
         """Convert batch to CSV string."""
         output = StringIO()
         writer = csv.writer(output, delimiter=self._delimiter)
@@ -232,7 +236,7 @@ class JSONFormat(Format):
 
     def __init__(self, **kwargs: Any):
         """Initialize JSON format handler.
-        
+
         Args:
             **kwargs: Ignored (for compatibility with get_format).
         """
@@ -313,7 +317,9 @@ class JSONFormat(Format):
                 },
             )
 
-    def write_batch(self, batch: Batch, encoding: str = "utf-8", **kwargs: Any) -> bytes:
+    def write_batch(
+        self, batch: Batch, encoding: str = "utf-8", **kwargs: Any
+    ) -> bytes:
         """Convert batch to JSON array."""
         # Convert rows to dict format
         rows = [
@@ -328,7 +334,7 @@ class JSONLFormat(Format):
 
     def __init__(self, **kwargs: Any):
         """Initialize JSONL format handler.
-        
+
         Args:
             **kwargs: Ignored (for compatibility with get_format).
         """
@@ -414,7 +420,9 @@ class JSONLFormat(Format):
                 },
             )
 
-    def write_batch(self, batch: Batch, encoding: str = "utf-8", **kwargs: Any) -> bytes:
+    def write_batch(
+        self, batch: Batch, encoding: str = "utf-8", **kwargs: Any
+    ) -> bytes:
         """Convert batch to JSONL format (one JSON object per line)."""
         lines = []
         for row in batch.rows:
@@ -428,7 +436,7 @@ class ParquetFormat(Format):
 
     def __init__(self, **kwargs: Any):
         """Initialize Parquet format handler.
-        
+
         Args:
             **kwargs: Ignored (for compatibility with get_format).
         """
@@ -469,9 +477,7 @@ class ParquetFormat(Format):
             ) from e
 
         columns = table.column_names
-        column_types = {
-            col: str(table.schema.field(col).type) for col in columns
-        }
+        column_types = {col: str(table.schema.field(col).type) for col in columns}
 
         # Yield in batches
         batch_number = 0
@@ -491,7 +497,9 @@ class ParquetFormat(Format):
                 },
             )
 
-    def write_batch(self, batch: ArrowBatch, encoding: str = "utf-8", **kwargs: Any) -> bytes:
+    def write_batch(
+        self, batch: ArrowBatch, encoding: str = "utf-8", **kwargs: Any
+    ) -> bytes:
         """Convert batch to Parquet format using PyArrow."""
         try:
             # Get Arrow table from batch
@@ -562,7 +570,9 @@ def get_format(format_name: str, **kwargs: Any) -> Format:
         # Custom format
         return _format_registry[format_name_lower](**kwargs)
     else:
-        available = ", ".join(["csv", "json", "jsonl", "parquet"] + list(_format_registry.keys()))
+        available = ", ".join(
+            ["csv", "json", "jsonl", "parquet"] + list(_format_registry.keys())
+        )
         raise ConnectorError(
             f"Unsupported format: '{format_name}'. Available formats: {available}",
             context={"format": format_name, "available": available},
@@ -574,4 +584,3 @@ def list_formats() -> list[str]:
     builtin = ["csv", "json", "jsonl", "parquet"]
     custom = list(_format_registry.keys())
     return sorted(builtin + custom)
-

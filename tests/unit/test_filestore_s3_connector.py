@@ -12,11 +12,11 @@ from datetime import datetime
 import pytest
 from moto import mock_aws
 
+from dataloader.connectors.filestore.config import S3FileStoreConfig
 from dataloader.connectors.filestore.connector import (
     FileStoreConnector,
     create_filestore_connector,
 )
-from dataloader.connectors.filestore.config import S3FileStoreConfig
 from dataloader.core.batch import ArrowBatch
 from dataloader.core.exceptions import ConnectorError
 from dataloader.core.state import State
@@ -40,6 +40,7 @@ def s3_bucket():
 def mock_s3_filesystem(s3_bucket, monkeypatch):
     """Mock fsspec S3 filesystem to work with moto by patching methods."""
     from unittest.mock import MagicMock
+
     import fsspec
 
     # Store original filesystem creation
@@ -185,7 +186,9 @@ class TestFileStoreS3Connector:
                 [2, "Bob", 87.0],
                 [3, "Charlie", 92.3],
             ],
-            metadata={"column_types": {"id": "int", "name": "string", "score": "float"}},
+            metadata={
+                "column_types": {"id": "int", "name": "string", "score": "float"}
+            },
         )
 
     def test_filestore_s3_connector_initialization(self, s3_config: S3FileStoreConfig):
@@ -199,7 +202,11 @@ class TestFileStoreS3Connector:
         assert connector._filesystem is None
 
     def test_filestore_s3_write_csv_append(
-        self, s3_config: S3FileStoreConfig, sample_batch: ArrowBatch, s3_bucket, mock_s3_filesystem
+        self,
+        s3_config: S3FileStoreConfig,
+        sample_batch: ArrowBatch,
+        s3_bucket,
+        mock_s3_filesystem,
     ):
         """Test writing CSV files to S3 in append mode."""
         connector = FileStoreConnector(s3_config)
@@ -226,7 +233,11 @@ class TestFileStoreS3Connector:
         assert rows[0]["score"] == "95.5"
 
     def test_filestore_s3_write_csv_overwrite(
-        self, s3_config: S3FileStoreConfig, sample_batch: ArrowBatch, s3_bucket, mock_s3_filesystem
+        self,
+        s3_config: S3FileStoreConfig,
+        sample_batch: ArrowBatch,
+        s3_bucket,
+        mock_s3_filesystem,
     ):
         """Test writing CSV files to S3 in overwrite mode."""
         s3_config.write_mode = "overwrite"
@@ -256,7 +267,11 @@ class TestFileStoreS3Connector:
         assert len(written_files) == 1
 
     def test_filestore_s3_write_json(
-        self, s3_config: S3FileStoreConfig, sample_batch: ArrowBatch, s3_bucket, mock_s3_filesystem
+        self,
+        s3_config: S3FileStoreConfig,
+        sample_batch: ArrowBatch,
+        s3_bucket,
+        mock_s3_filesystem,
     ):
         """Test writing JSON files to S3."""
         s3_config.format = "json"
@@ -280,7 +295,11 @@ class TestFileStoreS3Connector:
         assert data[0]["name"] == "Alice"
 
     def test_filestore_s3_write_jsonl(
-        self, s3_config: S3FileStoreConfig, sample_batch: ArrowBatch, s3_bucket, mock_s3_filesystem
+        self,
+        s3_config: S3FileStoreConfig,
+        sample_batch: ArrowBatch,
+        s3_bucket,
+        mock_s3_filesystem,
     ):
         """Test writing JSONL files to S3."""
         s3_config.format = "jsonl"
@@ -333,7 +352,9 @@ class TestFileStoreS3Connector:
         """Test reading from a directory of CSV files in S3."""
         # Create multiple CSV files in S3
         for i in range(2):
-            csv_content = f"id,name\n{i * 2 + 1},User{i * 2 + 1}\n{i * 2 + 2},User{i * 2 + 2}\n"
+            csv_content = (
+                f"id,name\n{i * 2 + 1},User{i * 2 + 1}\n{i * 2 + 2},User{i * 2 + 2}\n"
+            )
             s3_bucket.put_object(
                 Bucket="test-bucket",
                 Key=f"data/file_{i}.csv",
@@ -525,7 +546,9 @@ class TestFileStoreS3Connector:
         assert "client_kwargs" in connector._storage_options
         assert connector._storage_options["client_kwargs"]["region_name"] == "us-east-1"
 
-    def test_filestore_s3_storage_options_without_credentials(self, s3_config: S3FileStoreConfig):
+    def test_filestore_s3_storage_options_without_credentials(
+        self, s3_config: S3FileStoreConfig
+    ):
         """Test S3 storage options without explicit credentials (uses default/env)."""
         connector = FileStoreConnector(s3_config)
 
@@ -533,7 +556,6 @@ class TestFileStoreS3Connector:
         assert "client_kwargs" in connector._storage_options
         assert connector._storage_options["client_kwargs"]["region_name"] == "us-east-1"
         # Credentials may or may not be present depending on environment
-
 
     def test_filestore_s3_custom_endpoint(self, s3_bucket):
         """Test S3 with custom endpoint (LocalStack, MinIO)."""
@@ -729,7 +751,11 @@ class TestFileStoreS3Integration:
 
         # Verify all files were created in S3
         objects = s3_bucket.list_objects_v2(Bucket="test-bucket", Prefix="multi_batch/")
-        csv_files = [obj["Key"] for obj in objects.get("Contents", []) if obj["Key"].endswith(".csv")]
+        csv_files = [
+            obj["Key"]
+            for obj in objects.get("Contents", [])
+            if obj["Key"].endswith(".csv")
+        ]
         assert len(csv_files) == 3
 
     def test_s3_file_url_building(self, s3_bucket):
@@ -786,7 +812,9 @@ class TestFileStoreS3Integration:
         connector.write_batch(batch, state)
 
         # Verify existing files were deleted
-        objects = s3_bucket.list_objects_v2(Bucket="test-bucket", Prefix="overwrite_test/")
+        objects = s3_bucket.list_objects_v2(
+            Bucket="test-bucket", Prefix="overwrite_test/"
+        )
         old_files = [
             obj["Key"]
             for obj in objects.get("Contents", [])
@@ -798,7 +826,7 @@ class TestFileStoreS3Integration:
         new_files = [
             obj["Key"]
             for obj in objects.get("Contents", [])
-            if obj["Key"].startswith("overwrite_test/data_") and obj["Key"].endswith(".csv")
+            if obj["Key"].startswith("overwrite_test/data_")
+            and obj["Key"].endswith(".csv")
         ]
         assert len(new_files) == 1
-

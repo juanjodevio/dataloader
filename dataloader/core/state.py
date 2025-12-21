@@ -75,4 +75,3 @@ class State(BaseModel):
             State instance
         """
         return cls(**data)
-

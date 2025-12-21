@@ -142,4 +142,3 @@ class TransformPipeline:
                         "actual": len(row),
                     },
                 )
-

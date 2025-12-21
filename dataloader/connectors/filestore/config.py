@@ -20,7 +20,9 @@ class FileStoreConnectorConfig(BaseModel):
     """
 
     type: Literal["filestore"] = "filestore"
-    path: str = Field(description="File path or prefix (supports templates and URL formats)")
+    path: str = Field(
+        description="File path or prefix (supports templates and URL formats)"
+    )
 
     # Source-specific fields (for reading)
     incremental: Optional[IncrementalConfig] = Field(
@@ -66,7 +68,9 @@ class LocalFileStoreConfig(FileStoreConnectorConfig):
     """Configuration for local filesystem FileStore backend."""
 
     type: Literal["filestore"] = "filestore"
-    backend: Literal["local"] = Field(default="local", description="Storage backend type")
+    backend: Literal["local"] = Field(
+        default="local", description="Storage backend type"
+    )
 
     @model_validator(mode="after")
     def validate_local_path(self):
@@ -78,4 +82,3 @@ class LocalFileStoreConfig(FileStoreConnectorConfig):
 
 # Union type for all FileStore configs
 FileStoreConfigType = Union[S3FileStoreConfig, LocalFileStoreConfig]
-

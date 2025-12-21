@@ -1,6 +1,7 @@
 """Tests for template rendering."""
 
 import os
+
 import pytest
 
 from dataloader.core.exceptions import RecipeError
@@ -145,4 +146,3 @@ class TestTemplateRendering:
         }
         result = render_templates(recipe_dict)
         assert result["transform"]["steps"][0]["value"] == "test"
-

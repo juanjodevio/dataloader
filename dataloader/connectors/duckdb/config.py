@@ -43,4 +43,3 @@ class DuckDBConnectorConfig(BaseModel):
         if self.write_mode == "merge" and not self.merge_keys:
             raise ValueError("merge_keys is required when write_mode is 'merge'")
         return self
-

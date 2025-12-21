@@ -49,8 +49,10 @@ def execute(
         EngineError: If execution fails at any step
     """
     # Check if parallelism is enabled
-    parallelism = recipe.runtime.parallelism if hasattr(recipe.runtime, "parallelism") else 1
-    
+    parallelism = (
+        recipe.runtime.parallelism if hasattr(recipe.runtime, "parallelism") else 1
+    )
+
     if parallelism > 1:
         # Use async execution for parallelism
         run_async(_execute_async(recipe, state_backend))
@@ -65,14 +67,16 @@ def _execute_sequential(
 ) -> None:
     """Execute recipe sequentially (one batch at a time)."""
     metrics = MetricsCollector(recipe.name)
-    
+
     logger.info("Starting execution", extra={"recipe_name": recipe.name})
 
     try:
         state_dict = state_backend.load(recipe.name)
         state = State.from_dict(state_dict)
 
-        logger.debug(f"Loaded state: {state.to_dict()}", extra={"recipe_name": recipe.name})
+        logger.debug(
+            f"Loaded state: {state.to_dict()}", extra={"recipe_name": recipe.name}
+        )
 
         source = _get_connector(recipe.source)
         transformer = _get_transformer(recipe.transform)
@@ -80,7 +84,7 @@ def _execute_sequential(
 
         for batch in source.read_batches(state):
             batch_start = time.time()
-            
+
             logger.info(
                 f"Processing batch with {batch.row_count} rows",
                 extra={
@@ -92,12 +96,12 @@ def _execute_sequential(
             try:
                 batch = transformer.apply(batch)
                 destination.write_batch(batch, state)
-                
+
                 batch_time = time.time() - batch_start
                 metrics.record_batch(batch.row_count, batch_time)
-                
+
                 state_backend.save(recipe.name, state.to_dict())
-                
+
                 logger.debug(
                     "Saved state after batch",
                     extra={
@@ -114,11 +118,13 @@ def _execute_sequential(
             f"Completed execution: {metrics.get_summary()}",
             extra={"recipe_name": recipe.name},
         )
-        
+
         # Save metrics to state metadata
         state_dict = state_backend.load(recipe.name)
         state = State.from_dict(state_dict)
-        state = state.update(metadata={**state.metadata, "last_metrics": metrics.to_dict()})
+        state = state.update(
+            metadata={**state.metadata, "last_metrics": metrics.to_dict()}
+        )
         state_backend.save(recipe.name, state.to_dict())
 
     except Exception as e:
@@ -139,7 +145,7 @@ async def _execute_async(
     """Execute recipe with async parallelism."""
     metrics = MetricsCollector(recipe.name)
     parallelism = recipe.runtime.parallelism
-    
+
     logger.info(
         f"Starting execution with parallelism={parallelism}",
         extra={"recipe_name": recipe.name},
@@ -152,8 +158,10 @@ async def _execute_async(
         else:
             # Run sync load in thread
             loop = asyncio.get_event_loop()
-            state_dict = await loop.run_in_executor(None, state_backend.load, recipe.name)
-        
+            state_dict = await loop.run_in_executor(
+                None, state_backend.load, recipe.name
+            )
+
         state = State.from_dict(state_dict)
 
         logger.debug(
@@ -167,19 +175,19 @@ async def _execute_async(
 
         # Collect all batches first (needed for parallel processing)
         batches = list(source.read_batches(state))
-        
+
         if not batches:
             logger.info("No batches to process", extra={"recipe_name": recipe.name})
             return
 
         # Process batches in parallel with semaphore control
         semaphore = asyncio.Semaphore(parallelism)
-        
+
         async def process_batch_with_id(batch: Batch, batch_id: int) -> None:
             """Process a single batch (async wrapper)."""
             async with semaphore:
                 batch_start = time.time()
-                
+
                 logger.info(
                     f"Processing batch with {batch.row_count} rows",
                     extra={
@@ -187,42 +195,47 @@ async def _execute_async(
                         "batch_id": batch_id,
                     },
                 )
-                
+
                 try:
                     # Transform (sync, run in executor)
                     loop = asyncio.get_event_loop()
-                    transformed_batch = await loop.run_in_executor(None, transformer.apply, batch)
-                    
+                    transformed_batch = await loop.run_in_executor(
+                        None, transformer.apply, batch
+                    )
+
                     # Write (sync, run in executor)
-                    await loop.run_in_executor(None, destination.write_batch, transformed_batch, state)
-                    
+                    await loop.run_in_executor(
+                        None, destination.write_batch, transformed_batch, state
+                    )
+
                     batch_time = time.time() - batch_start
                     metrics.record_batch(batch.row_count, batch_time)
-                    
+
                 except Exception as e:
                     metrics.record_error(e, {"batch_id": batch_id})
                     raise
-        
+
         # Create tasks for all batches
-        tasks = [
-            process_batch_with_id(batch, i + 1)
-            for i, batch in enumerate(batches)
-        ]
-        
+        tasks = [process_batch_with_id(batch, i + 1) for i, batch in enumerate(batches)]
+
         # Process all batches with concurrency control
         await asyncio.gather(*tasks)
-        
+
         # Save state after all batches complete
         # Update state with metrics
-        updated_state = state.update(metadata={**state.metadata, "last_metrics": metrics.to_dict()})
+        updated_state = state.update(
+            metadata={**state.metadata, "last_metrics": metrics.to_dict()}
+        )
         state_dict_to_save = updated_state.to_dict()
-        
+
         if hasattr(state_backend, "save_async"):
             await state_backend.save_async(recipe.name, state_dict_to_save)
         else:
             loop = asyncio.get_event_loop()
-            await loop.run_in_executor(None, state_backend.save, recipe.name, state_dict_to_save)
-        
+            await loop.run_in_executor(
+                None, state_backend.save, recipe.name, state_dict_to_save
+            )
+
         metrics.finish()
         logger.info(
             f"Completed execution: {metrics.get_summary()}",
@@ -286,6 +299,3 @@ def _get_transformer(transform_config: TransformConfig) -> TransformPipeline:
             f"Failed to create transform pipeline: {e}",
             context={"transform_steps": len(transform_config.steps)},
         ) from e
-
-
-
