@@ -32,6 +32,7 @@ from dataloader.connectors.postgres.source import PostgresSource, create_postgre
 from dataloader.connectors.s3.source import S3Source, create_s3_source
 
 # Unified connectors (register themselves via @register_connector decorator on import)
+from dataloader.connectors.csv.connector import CSVConnector, create_csv_connector
 from dataloader.connectors.postgres.connector import (
     PostgresConnector,
     create_postgres_connector,
@@ -56,6 +57,8 @@ def reregister_builtins() -> None:
     """
     # Unified connectors (preferred)
     current_connectors = list_connector_types()
+    if "csv" not in current_connectors:
+        register_connector("csv", create_csv_connector)
     if "postgres" not in current_connectors:
         register_connector("postgres", create_postgres_connector)
     if "s3" not in current_connectors:
@@ -107,6 +110,7 @@ __all__ = [
     "DuckDBDestination",
     "S3Destination",
     # Unified connector implementations
+    "CSVConnector",
     "PostgresConnector",
     "S3Connector",
     # Source factory functions
@@ -117,6 +121,7 @@ __all__ = [
     "create_duckdb_destination",
     "create_s3_destination",
     # Unified connector factory functions
+    "create_csv_connector",
     "create_postgres_connector",
     "create_s3_connector",
 ]
