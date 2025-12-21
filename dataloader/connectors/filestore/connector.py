@@ -245,11 +245,13 @@ class FileStoreConnector:
 
         for file_info in files:
             file_path = file_info["path"]
+            # Ensure file_path is a string (not a Path object) for fsspec
+            file_path_str = str(file_path)
 
             # Filter by modification time
             if last_modified_cursor:
                 try:
-                    mod_time = fs.modified(file_path)
+                    mod_time = fs.modified(file_path_str)
                     if isinstance(mod_time, datetime):
                         mod_time_str = mod_time.isoformat()
                     else:
@@ -262,7 +264,7 @@ class FileStoreConnector:
                     pass
 
             # Filter by file name (lexicographic order)
-            if last_file_cursor and file_path <= str(last_file_cursor):
+            if last_file_cursor and file_path_str <= str(last_file_cursor):
                 continue
 
             filtered.append(file_info)
@@ -298,28 +300,30 @@ class FileStoreConnector:
             fs = self._get_filesystem()
             for file_info in files:
                 file_path = file_info["path"]
+                # Ensure file_path is a string (not a Path object) for fsspec
+                file_path_str = str(file_path)
 
                 try:
                     # Read file using fsspec
                     # For binary formats (parquet), read as bytes; for text formats, read as string
                     if self._format == "parquet":
-                        with fs.open(file_path, mode="rb") as f:
+                        with fs.open(file_path_str, mode="rb") as f:
                             content = f.read()
                     else:
-                        with fs.open(file_path, mode="r", encoding=self._encoding) as f:
+                        with fs.open(file_path_str, mode="r", encoding=self._encoding) as f:
                             content = f.read()
 
                     # Use format handler to read batches
                     yield from self._format_handler.read_batches(
                         content,
-                        file_path,
+                        file_path_str,
                         batch_size=self._batch_size,
                         encoding=self._encoding,
                     )
                 except Exception as e:
                     raise ConnectorError(
                         f"Failed to read file: {e}",
-                        context={"path": file_path, "backend": self._backend, "format": self._format},
+                        context={"path": file_path_str, "backend": self._backend, "format": self._format},
                     ) from e
 
         except ConnectorError:

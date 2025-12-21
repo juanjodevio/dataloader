@@ -35,7 +35,7 @@ source:
   type: filestore
   backend: local
   format: csv
-  path: {csv_path!r}
+  path: {str(csv_path)!r}
 
 transform:
   steps:
@@ -84,7 +84,7 @@ source:
   type: filestore
   backend: local
   format: csv
-  path: {csv_path!r}
+  path: {str(csv_path)!r}
 
 transform:
   steps:
@@ -107,7 +107,7 @@ destination:
         # Verify data in DuckDB
         conn = duckdb.connect(str(temp_dir / "output.duckdb"))
         result = conn.execute("SELECT * FROM test_table ORDER BY id").fetchall()
-        columns = [desc[0] for desc in conn.execute("PRAGMA table_info(test_table)").fetchall()]
+        columns = [desc[0] for desc in conn.execute("DESCRIBE test_table").fetchall()]
         conn.close()
 
         assert "first_name" in columns
@@ -150,12 +150,12 @@ source:
   type: filestore
   backend: local
   format: csv
-  path: {csv_path!r}
+  path: {str(csv_path)!r}
 
 transform:
   steps:
     - type: add_column
-      name: _source
+      name: _recipe
       value: "child"
 
 destination:
@@ -179,8 +179,9 @@ destination:
         conn.close()
 
         assert len(result) == 1
-        # Should have _source column with value "child" (child overrides base)
-        assert result[0][2] == "child"
+        # Should have _source column from base and _recipe column from child (steps are merged)
+        assert result[0][2] == "base"  # _source from base recipe
+        assert result[0][3] == "child"  # _recipe from child recipe
 
     def test_incremental_load_cursor_based(self, temp_dir):
         """Test incremental loads with cursor-based strategy."""
@@ -201,10 +202,13 @@ source:
   type: filestore
   backend: local
   format: csv
-  path: {csv_path!r}
+  path: {str(csv_path)!r}
   incremental:
     strategy: cursor
     cursor_column: updated_at
+
+transform:
+  steps: []
 
 destination:
   type: duckdb
@@ -256,14 +260,14 @@ source:
   type: filestore
   backend: local
   format: csv
-  path: {csv_path!r}
+  path: {str(csv_path)!r}
 
 transform:
   steps: []
 
 destination:
   type: duckdb
-  database: "{temp_dir / 'example.duckdb'}"
+  database: {str(temp_dir / 'example.duckdb')!r}
   table: example_table
   write_mode: overwrite
 
@@ -297,6 +301,9 @@ source:
   format: csv
   path: "/tmp/test.csv"
 
+transform:
+  steps: []
+
 destination:
   type: duckdb
   database: "/tmp/test.duckdb"
@@ -305,7 +312,7 @@ destination:
 
         recipe = from_yaml(str(recipe_path))
         assert recipe.name == "api_test"
-        assert recipe.source.type == "csv"
+        assert recipe.source.type == "filestore"
         assert recipe.destination.type == "duckdb"
 
     def test_api_run_recipe(self, temp_dir):
@@ -326,13 +333,16 @@ source:
   type: filestore
   backend: local
   format: csv
-  path: {csv_path!r}
+  path: {str(csv_path)!r}
 
 destination:
   type: duckdb
-  database: "{temp_dir / 'test.duckdb'}"
+  database: {str(temp_dir / 'test.duckdb')!r}
   table: test_table
   write_mode: overwrite
+
+transform:
+  steps: []
 """
         recipe_path.write_text(recipe_content)
 
@@ -364,13 +374,16 @@ source:
   type: filestore
   backend: local
   format: csv
-  path: {csv_path!r}
+  path: {str(csv_path)!r}
 
 destination:
   type: duckdb
-  database: "{temp_dir / 'test.duckdb'}"
+  database: {str(temp_dir / 'test.duckdb')!r}
   table: test_table
   write_mode: append
+
+transform:
+  steps: []
 """
         recipe_path.write_text(recipe_content)
 
