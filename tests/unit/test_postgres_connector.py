@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from dataloader.connectors.postgres.connector import PostgresConnector, create_postgres_connector
-from dataloader.core.batch import DictBatch
+from dataloader.core.batch import ArrowBatch
 from dataloader.core.exceptions import ConnectorError
 from dataloader.core.state import State
 from dataloader.models.destination_config import DestinationConfig
@@ -107,15 +107,19 @@ class TestPostgresConnector:
         assert "Failed to create database engine" in str(exc_info.value)
         assert exc_info.value.context["host"] == "localhost"
 
+    @patch("dataloader.connectors.postgres.connector.pd.read_sql")
     @patch("dataloader.connectors.postgres.connector.create_engine")
     @patch("dataloader.connectors.postgres.connector.inspect")
     def test_postgres_read_batches(
         self,
         mock_inspect: MagicMock,
         mock_create_engine: MagicMock,
+        mock_read_sql: MagicMock,
         postgres_config: SourceConfig,
     ):
         """Test reading batches from Postgres using SQLAlchemy."""
+        import pandas as pd
+        
         # Setup mock engine
         mock_engine = MagicMock()
         mock_create_engine.return_value = mock_engine
@@ -128,17 +132,13 @@ class TestPostgresConnector:
             {"name": "name", "type": "VARCHAR(100)"},
         ]
 
-        # Setup mock connection and result
-        mock_conn = MagicMock()
-        mock_engine.connect.return_value.__enter__ = MagicMock(return_value=mock_conn)
-        mock_engine.connect.return_value.__exit__ = MagicMock(return_value=False)
-
-        mock_result = MagicMock()
-        mock_conn.execution_options.return_value.execute.return_value = mock_result
-        mock_result.fetchmany.side_effect = [
-            [(1, "Alice"), (2, "Bob")],  # First batch
-            [],  # No more data
-        ]
+        # Setup mock pandas DataFrame from read_sql
+        mock_df = pd.DataFrame({
+            "id": [1, 2],
+            "name": ["Alice", "Bob"]
+        })
+        # Mock read_sql to return an iterator (chunksize behavior)
+        mock_read_sql.return_value = iter([mock_df])
 
         connector = PostgresConnector(postgres_config)
         state = State()

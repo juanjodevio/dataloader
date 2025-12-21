@@ -4,7 +4,7 @@ from datetime import datetime
 
 import pytest
 
-from dataloader.core.batch import DictBatch
+from dataloader.core.batch import ArrowBatch
 from dataloader.core.exceptions import TransformError
 from dataloader.models.transform_config import TransformConfig, TransformStep
 from dataloader.transforms import (
@@ -30,7 +30,7 @@ from dataloader.transforms import (
 @pytest.fixture
 def sample_batch():
     """Create a sample batch for testing."""
-    return DictBatch(
+    return ArrowBatch.from_rows(
         columns=["id", "name", "age", "created_at"],
         rows=[
             [1, "Alice", "25", "2024-01-01T10:00:00"],
@@ -44,7 +44,7 @@ def sample_batch():
 @pytest.fixture
 def empty_batch():
     """Create an empty batch for testing."""
-    return DictBatch(
+    return ArrowBatch.from_rows(
         columns=["id", "name"],
         rows=[],
         metadata={},
@@ -195,7 +195,7 @@ class TestCastColumnsTransform:
 
     def test_cast_to_float(self):
         """Should cast string to float."""
-        batch = DictBatch(
+        batch = ArrowBatch.from_rows(
             columns=["price"],
             rows=[["19.99"], ["5.50"]],
             metadata={},
@@ -208,7 +208,7 @@ class TestCastColumnsTransform:
 
     def test_cast_to_str(self):
         """Should cast int to string."""
-        batch = DictBatch(
+        batch = ArrowBatch.from_rows(
             columns=["code"],
             rows=[[123], [456]],
             metadata={},
@@ -247,7 +247,7 @@ class TestCastColumnsTransform:
 
     def test_handles_none_values(self):
         """Should preserve None values without casting."""
-        batch = DictBatch(
+        batch = ArrowBatch.from_rows(
             columns=["value"],
             rows=[["10"], [None], ["20"]],
             metadata={},
@@ -261,7 +261,7 @@ class TestCastColumnsTransform:
 
     def test_invalid_cast_raises(self):
         """Should raise on invalid conversion."""
-        batch = DictBatch(
+        batch = ArrowBatch.from_rows(
             columns=["value"],
             rows=[["not_a_number"]],
             metadata={},
@@ -471,7 +471,7 @@ class TestTransformPipeline:
 
     def test_step_output_feeds_next_step(self):
         """Each step should receive output of previous step."""
-        batch = DictBatch(
+        batch = ArrowBatch.from_rows(
             columns=["old_name"],
             rows=[["value"]],
             metadata={},
@@ -498,7 +498,7 @@ class TestTransformIntegration:
     def test_realistic_pipeline(self):
         """Test a realistic data transformation pipeline."""
         # Raw data from source
-        batch = DictBatch(
+        batch = ArrowBatch.from_rows(
             columns=["user_id", "user_name", "age_str", "signup_date"],
             rows=[
                 ["1", "alice", "25", "2024-01-15T10:30:00"],

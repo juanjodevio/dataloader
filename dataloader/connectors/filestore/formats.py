@@ -167,7 +167,7 @@ class CSVFormat(Format):
         batch_size: int = 1000,
         encoding: str = "utf-8",
         **kwargs: Any,
-    ) -> Iterable[DictBatch]:
+    ) -> Iterable[ArrowBatch]:
         """Read batches from CSV content."""
         # Convert bytes to string if needed
         if isinstance(content, bytes):

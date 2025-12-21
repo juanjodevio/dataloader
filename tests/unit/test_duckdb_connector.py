@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from dataloader.connectors.duckdb.connector import DuckDBConnector, create_duckdb_connector
-from dataloader.core.batch import DictBatch
+from dataloader.core.batch import ArrowBatch
 from dataloader.core.exceptions import ConnectorError
 from dataloader.core.state import State
 from dataloader.models.destination_config import DestinationConfig
@@ -26,9 +26,9 @@ class TestDuckDBConnector:
         )
 
     @pytest.fixture
-    def sample_batch(self) -> DictBatch:
+    def sample_batch(self) -> ArrowBatch:
         """Create a sample batch with typed metadata."""
-        return DictBatch(
+        return ArrowBatch.from_rows(
             columns=["id", "name", "score"],
             rows=[
                 [1, "Alice", 95.5],
@@ -60,7 +60,7 @@ class TestDuckDBConnector:
         assert connector._conn is None
 
     def test_duckdb_in_memory_write(
-        self, duckdb_config: DestinationConfig, sample_batch: DictBatch
+        self, duckdb_config: DestinationConfig, sample_batch: ArrowBatch
     ):
         """Test writing batches to in-memory DuckDB."""
         connector = DuckDBConnector(duckdb_config)
@@ -80,7 +80,7 @@ class TestDuckDBConnector:
         connector.close()
 
     def test_duckdb_file_based_write(
-        self, file_based_config: DestinationConfig, sample_batch: DictBatch
+        self, file_based_config: DestinationConfig, sample_batch: ArrowBatch
     ):
         """Test writing to file-based DuckDB database."""
         connector = DuckDBConnector(file_based_config)
@@ -100,7 +100,7 @@ class TestDuckDBConnector:
         assert Path(file_based_config.database).exists()
 
     def test_duckdb_table_creation(
-        self, duckdb_config: DestinationConfig, sample_batch: DictBatch
+        self, duckdb_config: DestinationConfig, sample_batch: ArrowBatch
     ):
         """Test that table is created from batch schema."""
         connector = DuckDBConnector(duckdb_config)
@@ -115,7 +115,8 @@ class TestDuckDBConnector:
         assert "id" in column_info
         assert "name" in column_info
         assert "score" in column_info
-        assert "INTEGER" in column_info["id"]
+        # ArrowBatch uses int64 by default, which maps to BIGINT in DuckDB
+        assert "INTEGER" in column_info["id"] or "BIGINT" in column_info["id"]
         assert "VARCHAR" in column_info["name"]
         assert "DOUBLE" in column_info["score"]
 
@@ -127,7 +128,7 @@ class TestDuckDBConnector:
         state = State()
 
         # First batch
-        batch1 = DictBatch(
+        batch1 = ArrowBatch.from_rows(
             columns=["id", "name"],
             rows=[[1, "Alice"]],
             metadata={"column_types": {"id": "int", "name": "string"}},
@@ -135,7 +136,7 @@ class TestDuckDBConnector:
         connector.write_batch(batch1, state)
 
         # Second batch with new column
-        batch2 = DictBatch(
+        batch2 = ArrowBatch.from_rows(
             columns=["id", "name", "age"],
             rows=[[2, "Bob", 25]],
             metadata={"column_types": {"id": "int", "name": "string", "age": "int"}},
@@ -155,12 +156,12 @@ class TestDuckDBConnector:
         connector = DuckDBConnector(duckdb_config)
         state = State()
 
-        batch1 = DictBatch(
+        batch1 = ArrowBatch.from_rows(
             columns=["id", "name"],
             rows=[[1, "Alice"]],
             metadata={},
         )
-        batch2 = DictBatch(
+        batch2 = ArrowBatch.from_rows(
             columns=["id", "name"],
             rows=[[2, "Bob"]],
             metadata={},
@@ -182,7 +183,7 @@ class TestDuckDBConnector:
         connector = DuckDBConnector(duckdb_config)
         state = State()
 
-        batch1 = DictBatch(
+        batch1 = ArrowBatch.from_rows(
             columns=["id", "name"],
             rows=[[1, "Alice"], [2, "Bob"]],
             metadata={},
@@ -193,7 +194,7 @@ class TestDuckDBConnector:
         connector2 = DuckDBConnector(duckdb_config)
         connector2._conn = connector._conn  # Share connection for in-memory db
 
-        batch2 = DictBatch(
+        batch2 = ArrowBatch.from_rows(
             columns=["id", "name"],
             rows=[[3, "Charlie"]],
             metadata={},
@@ -210,7 +211,7 @@ class TestDuckDBConnector:
         connector.close()
 
     def test_duckdb_merge_mode_raises_error(
-        self, duckdb_config: DestinationConfig, sample_batch: DictBatch
+        self, duckdb_config: DestinationConfig, sample_batch: ArrowBatch
     ):
         """Test that merge mode raises ConnectorError."""
         duckdb_config.write_mode = "merge"
@@ -229,7 +230,7 @@ class TestDuckDBConnector:
         connector = DuckDBConnector(duckdb_config)
         state = State()
 
-        batch = DictBatch(
+        batch = ArrowBatch.from_rows(
             columns=["id", "name"],
             rows=[],
             metadata={},
@@ -338,7 +339,7 @@ class TestDuckDBIntegration:
 
         # Write multiple batches
         for i in range(3):
-            batch = DictBatch(
+            batch = ArrowBatch.from_rows(
                 columns=["event_id", "event_type", "timestamp"],
                 rows=[
                     [i * 2, "click", f"2024-01-{i+1:02d}"],
@@ -372,7 +373,7 @@ class TestDuckDBIntegration:
         connector1 = DuckDBConnector(config)
         state = State()
 
-        batch = DictBatch(
+        batch = ArrowBatch.from_rows(
             columns=["metric", "value"],
             rows=[["cpu", 75.5], ["memory", 80.2]],
             metadata={},
@@ -382,7 +383,7 @@ class TestDuckDBIntegration:
 
         # Second run: append more data
         connector2 = DuckDBConnector(config)
-        batch2 = DictBatch(
+        batch2 = ArrowBatch.from_rows(
             columns=["metric", "value"],
             rows=[["disk", 45.0]],
             metadata={},

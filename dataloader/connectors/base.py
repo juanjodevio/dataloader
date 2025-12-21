@@ -22,7 +22,7 @@ class Connector(Protocol):
             def read_batches(self, state: State) -> Iterable[Batch]:
                 # ... execute query with cursor filter
                 for chunk in self._fetch_chunks():
-                    yield DictBatch(...)
+                    yield ArrowBatch(...)
             
             def write_batch(self, batch: Batch, state: State) -> None:
                 # ... insert rows into database

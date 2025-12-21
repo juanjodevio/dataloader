@@ -6,6 +6,8 @@ from pathlib import Path
 
 import pytest
 
+from dataloader.core.batch import ArrowBatch
+
 
 @pytest.fixture
 def temp_dir():
@@ -43,4 +45,17 @@ def cli_vars():
         "CLI_VAR_1": "cli_value_1",
         "CLI_VAR_2": "cli_value_2",
     }
+
+
+@pytest.fixture
+def simple_batch():
+    """Create a simple ArrowBatch for connector testing.
+    
+    Returns an ArrowBatch with id and name columns - commonly used across connector tests.
+    """
+    return ArrowBatch.from_rows(
+        columns=["id", "name"],
+        rows=[[1, "Alice"], [2, "Bob"]],
+        metadata={},
+    )
 

@@ -12,7 +12,7 @@ from dataloader.connectors.filestore.connector import (
     create_filestore_connector,
 )
 from dataloader.connectors.filestore.config import LocalFileStoreConfig
-from dataloader.core.batch import DictBatch
+from dataloader.core.batch import ArrowBatch
 from dataloader.core.exceptions import ConnectorError
 from dataloader.core.state import State
 from dataloader.models.destination_config import DestinationConfig
@@ -35,9 +35,9 @@ class TestFileStoreLocalConnector:
         )
 
     @pytest.fixture
-    def sample_batch(self) -> DictBatch:
+    def sample_batch(self) -> ArrowBatch:
         """Create a sample batch."""
-        return DictBatch(
+        return ArrowBatch.from_rows(
             columns=["id", "name", "score"],
             rows=[
                 [1, "Alice", 95.5],
@@ -59,7 +59,7 @@ class TestFileStoreLocalConnector:
         assert connector._encoding == "utf-8"
         assert connector._filesystem is None
 
-    def test_filestore_write_csv_append(self, local_config: LocalFileStoreConfig, sample_batch: DictBatch):
+    def test_filestore_write_csv_append(self, local_config: LocalFileStoreConfig, sample_batch: ArrowBatch):
         """Test writing CSV files in append mode."""
         connector = FileStoreConnector(local_config)
         state = State()
@@ -83,22 +83,17 @@ class TestFileStoreLocalConnector:
         assert rows[0]["name"] == "Alice"
         assert rows[0]["score"] == "95.5"
 
-    def test_filestore_write_csv_overwrite(self, local_config: LocalFileStoreConfig, sample_batch: DictBatch):
+    def test_filestore_write_csv_overwrite(self, local_config: LocalFileStoreConfig, sample_batch: ArrowBatch, simple_batch):
         """Test writing CSV files in overwrite mode."""
         local_config.write_mode = "overwrite"
         connector = FileStoreConnector(local_config)
         state = State()
 
-        # Write first batch
-        batch1 = DictBatch(
-            columns=["id", "name"],
-            rows=[[1, "Alice"], [2, "Bob"]],
-            metadata={},
-        )
-        connector.write_batch(batch1, state)
+        # Write first batch using shared fixture
+        connector.write_batch(simple_batch, state)
 
         # Write second batch with same connector (should create new file)
-        batch2 = DictBatch(
+        batch2 = ArrowBatch.from_rows(
             columns=["id", "name"],
             rows=[[3, "Charlie"]],
             metadata={},
@@ -125,7 +120,7 @@ class TestFileStoreLocalConnector:
         connector = FileStoreConnector(local_config)
         state = State()
 
-        batch = DictBatch(
+        batch = ArrowBatch.from_rows(
             columns=["id", "name"],
             rows=[[2, "New"]],
             metadata={},
@@ -135,7 +130,7 @@ class TestFileStoreLocalConnector:
         # Existing file should be deleted
         assert not existing_file.exists()
 
-    def test_filestore_write_json(self, local_config: LocalFileStoreConfig, sample_batch: DictBatch):
+    def test_filestore_write_json(self, local_config: LocalFileStoreConfig, sample_batch: ArrowBatch):
         """Test writing JSON files."""
         local_config.format = "json"
         connector = FileStoreConnector(local_config)
@@ -157,7 +152,7 @@ class TestFileStoreLocalConnector:
         assert data[0]["id"] == 1
         assert data[0]["name"] == "Alice"
 
-    def test_filestore_write_jsonl(self, local_config: LocalFileStoreConfig, sample_batch: DictBatch):
+    def test_filestore_write_jsonl(self, local_config: LocalFileStoreConfig, sample_batch: ArrowBatch):
         """Test writing JSONL files."""
         local_config.format = "jsonl"
         connector = FileStoreConnector(local_config)
@@ -316,7 +311,7 @@ class TestFileStoreLocalConnector:
         connector = FileStoreConnector(local_config)
         state = State()
 
-        batch = DictBatch(
+        batch = ArrowBatch.from_rows(
             columns=["id", "name"],
             rows=[],
             metadata={},
@@ -325,7 +320,7 @@ class TestFileStoreLocalConnector:
 
         assert len(connector.written_files) == 0
 
-    def test_filestore_merge_mode_raises_error(self, local_config: LocalFileStoreConfig, sample_batch: DictBatch):
+    def test_filestore_merge_mode_raises_error(self, local_config: LocalFileStoreConfig, sample_batch: ArrowBatch):
         """Test that merge mode raises ConnectorError."""
         local_config.write_mode = "merge"
         connector = FileStoreConnector(local_config)
@@ -470,7 +465,7 @@ class TestFileStoreIntegration:
         writer = FileStoreConnector(write_config)
         state = State()
 
-        batch = DictBatch(
+        batch = ArrowBatch.from_rows(
             columns=["id", "name"],
             rows=[[1, "Alice"], [2, "Bob"]],
             metadata={},
@@ -507,7 +502,7 @@ class TestFileStoreIntegration:
         writer = FileStoreConnector(write_config)
         state = State()
 
-        batch = DictBatch(
+        batch = ArrowBatch.from_rows(
             columns=["id", "name"],
             rows=[[1, "Alice"], [2, "Bob"]],
             metadata={},
@@ -547,7 +542,7 @@ class TestFileStoreIntegration:
         # (each connector instance has its own batch counter)
         connector = FileStoreConnector(config)
         for i in range(3):
-            batch = DictBatch(
+            batch = ArrowBatch.from_rows(
                 columns=["id", "value"],
                 rows=[[i * 2 + 1, f"val{i * 2 + 1}"], [i * 2 + 2, f"val{i * 2 + 2}"]],
                 metadata={},

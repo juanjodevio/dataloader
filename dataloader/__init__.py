@@ -8,7 +8,7 @@ robust EL workflows with minimal code.
 from dataloader.api import from_yaml, run_recipe, run_recipe_from_yaml
 
 # Core classes
-from dataloader.core.batch import Batch, DictBatch
+from dataloader.core.batch import ArrowBatch, Batch
 from dataloader.core.state import State
 from dataloader.core.state_backend import LocalStateBackend, StateBackend
 
@@ -36,7 +36,7 @@ __all__ = [
     "StateBackend",
     "LocalStateBackend",
     "Batch",
-    "DictBatch",
+    "ArrowBatch",
     # Exceptions
     "DataLoaderError",
     "RecipeError",

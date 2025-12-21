@@ -272,7 +272,7 @@ class FileStoreConnector:
         return filtered
 
 
-    def read_batches(self, state: State) -> Iterable[DictBatch]:
+    def read_batches(self, state: State) -> Iterable[ArrowBatch]:
         """Read files from FileStore as batches.
 
         Uses fsspec for unified file operations across all backends and format handlers
@@ -282,7 +282,7 @@ class FileStoreConnector:
             state: Current state containing cursor values for incremental reads.
 
         Yields:
-            DictBatch instances containing the data.
+            ArrowBatch instances containing the data.
 
         Raises:
             NotImplementedError: If reading is not supported (should not happen for FileStore).

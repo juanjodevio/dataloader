@@ -185,30 +185,30 @@ class PostgresConnector:
 
             query, params = self._build_query(state)
 
-            with engine.connect() as conn:
-                # Use pandas read_sql with chunksize for memory-efficient reading
-                batch_number = 0
-                for chunk_df in pd.read_sql(
-                    text(query), conn, params=params, chunksize=self._batch_size
-                ):
-                    if chunk_df.empty:
-                        break
+            # Use pandas read_sql with chunksize for memory-efficient reading
+            # Use engine directly (not connection) for better pandas compatibility
+            batch_number = 0
+            for chunk_df in pd.read_sql(
+                query, engine, params=params, chunksize=self._batch_size
+            ):
+                if chunk_df.empty:
+                    break
 
-                    # Convert pandas DataFrame to Arrow Table
-                    arrow_table = pa.Table.from_pandas(chunk_df)
+                # Convert pandas DataFrame to Arrow Table
+                arrow_table = pa.Table.from_pandas(chunk_df)
 
-                    batch_number += 1
-                    yield ArrowBatch(
-                        arrow_table,
-                        metadata={
-                            "batch_number": batch_number,
-                            "row_count": len(chunk_df),
-                            "source_type": "postgres",
-                            "table": self._table,
-                            "schema": self._db_schema,
-                            "column_types": column_types,
-                        },
-                    )
+                batch_number += 1
+                yield ArrowBatch(
+                    arrow_table,
+                    metadata={
+                        "batch_number": batch_number,
+                        "row_count": len(chunk_df),
+                        "source_type": "postgres",
+                        "table": self._table,
+                        "schema": self._db_schema,
+                        "column_types": column_types,
+                    },
+                )
 
         except SQLAlchemyError as e:
             raise ConnectorError(

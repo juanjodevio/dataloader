@@ -17,7 +17,7 @@ from dataloader.connectors.filestore.connector import (
     create_filestore_connector,
 )
 from dataloader.connectors.filestore.config import S3FileStoreConfig
-from dataloader.core.batch import DictBatch
+from dataloader.core.batch import ArrowBatch
 from dataloader.core.exceptions import ConnectorError
 from dataloader.core.state import State
 from dataloader.models.destination_config import DestinationConfig
@@ -176,9 +176,9 @@ class TestFileStoreS3Connector:
         )
 
     @pytest.fixture
-    def sample_batch(self) -> DictBatch:
+    def sample_batch(self) -> ArrowBatch:
         """Create a sample batch."""
-        return DictBatch(
+        return ArrowBatch.from_rows(
             columns=["id", "name", "score"],
             rows=[
                 [1, "Alice", 95.5],
@@ -199,7 +199,7 @@ class TestFileStoreS3Connector:
         assert connector._filesystem is None
 
     def test_filestore_s3_write_csv_append(
-        self, s3_config: S3FileStoreConfig, sample_batch: DictBatch, s3_bucket, mock_s3_filesystem
+        self, s3_config: S3FileStoreConfig, sample_batch: ArrowBatch, s3_bucket, mock_s3_filesystem
     ):
         """Test writing CSV files to S3 in append mode."""
         connector = FileStoreConnector(s3_config)
@@ -226,7 +226,7 @@ class TestFileStoreS3Connector:
         assert rows[0]["score"] == "95.5"
 
     def test_filestore_s3_write_csv_overwrite(
-        self, s3_config: S3FileStoreConfig, sample_batch: DictBatch, s3_bucket, mock_s3_filesystem
+        self, s3_config: S3FileStoreConfig, sample_batch: ArrowBatch, s3_bucket, mock_s3_filesystem
     ):
         """Test writing CSV files to S3 in overwrite mode."""
         s3_config.write_mode = "overwrite"
@@ -256,7 +256,7 @@ class TestFileStoreS3Connector:
         assert len(written_files) == 1
 
     def test_filestore_s3_write_json(
-        self, s3_config: S3FileStoreConfig, sample_batch: DictBatch, s3_bucket, mock_s3_filesystem
+        self, s3_config: S3FileStoreConfig, sample_batch: ArrowBatch, s3_bucket, mock_s3_filesystem
     ):
         """Test writing JSON files to S3."""
         s3_config.format = "json"
@@ -280,7 +280,7 @@ class TestFileStoreS3Connector:
         assert data[0]["name"] == "Alice"
 
     def test_filestore_s3_write_jsonl(
-        self, s3_config: S3FileStoreConfig, sample_batch: DictBatch, s3_bucket, mock_s3_filesystem
+        self, s3_config: S3FileStoreConfig, sample_batch: ArrowBatch, s3_bucket, mock_s3_filesystem
     ):
         """Test writing JSONL files to S3."""
         s3_config.format = "jsonl"
@@ -443,7 +443,7 @@ class TestFileStoreS3Connector:
         connector = FileStoreConnector(s3_config)
         state = State()
 
-        batch = DictBatch(
+        batch = ArrowBatch.from_rows(
             columns=["id", "name"],
             rows=[],
             metadata={},
@@ -453,7 +453,7 @@ class TestFileStoreS3Connector:
         assert len(connector.written_files) == 0
 
     def test_filestore_s3_merge_mode_raises_error(
-        self, s3_config: S3FileStoreConfig, sample_batch: DictBatch, s3_bucket
+        self, s3_config: S3FileStoreConfig, sample_batch: ArrowBatch, s3_bucket
     ):
         """Test that merge mode raises ConnectorError."""
         s3_config.write_mode = "merge"
@@ -631,7 +631,7 @@ class TestFileStoreS3Integration:
         writer = FileStoreConnector(write_config)
         state = State()
 
-        batch = DictBatch(
+        batch = ArrowBatch.from_rows(
             columns=["id", "name"],
             rows=[[1, "Alice"], [2, "Bob"]],
             metadata={},
@@ -673,7 +673,7 @@ class TestFileStoreS3Integration:
         writer = FileStoreConnector(write_config)
         state = State()
 
-        batch = DictBatch(
+        batch = ArrowBatch.from_rows(
             columns=["id", "name"],
             rows=[[1, "Alice"], [2, "Bob"]],
             metadata={},
@@ -717,7 +717,7 @@ class TestFileStoreS3Integration:
         # Write multiple batches using the same connector instance
         connector = FileStoreConnector(config)
         for i in range(3):
-            batch = DictBatch(
+            batch = ArrowBatch.from_rows(
                 columns=["id", "value"],
                 rows=[[i * 2 + 1, f"val{i * 2 + 1}"], [i * 2 + 2, f"val{i * 2 + 2}"]],
                 metadata={},
@@ -775,7 +775,7 @@ class TestFileStoreS3Integration:
         connector = FileStoreConnector(config)
         state = State()
 
-        batch = DictBatch(
+        batch = ArrowBatch.from_rows(
             columns=["id", "name"],
             rows=[[3, "New"]],
             metadata={},

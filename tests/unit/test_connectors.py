@@ -11,7 +11,7 @@ from dataloader.connectors import (
     list_connector_types,
     register_connector,
 )
-from dataloader.core.batch import Batch, DictBatch
+from dataloader.core.batch import ArrowBatch, Batch
 from dataloader.core.exceptions import ConnectorError
 from dataloader.core.state import State
 from dataloader.models.connector_config import ConnectorConfig
@@ -28,7 +28,7 @@ class MockConnector:
 
     def read_batches(self, state: State) -> Iterable[Batch]:
         """Read batches - supports read operations."""
-        yield DictBatch(
+        yield ArrowBatch.from_rows(
             columns=["id", "name"],
             rows=[[1, "test"]],
             metadata={"source": "mock"},
@@ -47,7 +47,7 @@ class MockReadOnlyConnector:
 
     def read_batches(self, state: State) -> Iterable[Batch]:
         """Read batches - read-only connector."""
-        yield DictBatch(
+        yield ArrowBatch.from_rows(
             columns=["id", "name"],
             rows=[[1, "test"]],
             metadata={"source": "mock"},
@@ -124,7 +124,7 @@ class TestConnectorProtocol:
         )
         connector = MockConnector(config)
         state = State()
-        batch = DictBatch(columns=["id"], rows=[[1]])
+        batch = ArrowBatch.from_rows(columns=["id"], rows=[[1]])
 
         connector.write_batch(batch, state)
 
@@ -160,7 +160,7 @@ class TestConnectorProtocol:
         )
         connector = MockWriteOnlyConnector(config)
         state = State()
-        batch = DictBatch(columns=["id"], rows=[[1]])
+        batch = ArrowBatch.from_rows(columns=["id"], rows=[[1]])
 
         connector.write_batch(batch, state)
 
