@@ -10,6 +10,8 @@ from abc import ABC, abstractmethod
 from io import BytesIO, StringIO, TextIOWrapper
 from typing import Any, Iterable
 
+import pyarrow.parquet as pq
+
 from dataloader.core.batch import ArrowBatch, Batch
 from dataloader.core.exceptions import ConnectorError
 
@@ -449,8 +451,6 @@ class ParquetFormat(Format):
         **kwargs: Any,
     ) -> Iterable[ArrowBatch]:
         """Read batches from Parquet content using PyArrow."""
-        import pyarrow.parquet as pq
-
         # Parquet content should be bytes
         if isinstance(content, str):
             raise ConnectorError(
@@ -493,8 +493,6 @@ class ParquetFormat(Format):
 
     def write_batch(self, batch: ArrowBatch, encoding: str = "utf-8", **kwargs: Any) -> bytes:
         """Convert batch to Parquet format using PyArrow."""
-        import pyarrow.parquet as pq
-
         try:
             # Get Arrow table from batch
             arrow_table = batch.to_arrow()
