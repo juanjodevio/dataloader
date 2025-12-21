@@ -10,6 +10,14 @@ DataLoader uses beta versioning: `0.0.0b1`, `0.0.0b2`, etc.
 
 ## [Unreleased]
 
+### Fixed
+- **FileStoreConnector S3 path handling**: Fixed multiple issues with S3FileStoreConfig path resolution
+  - Fixed `_build_file_url` to correctly include path prefix when constructing S3 URLs
+  - Fixed `_delete_existing_files` to properly handle S3 directory paths for overwrite mode
+  - Fixed `_list_files` to correctly handle both single files and directories (no trailing slash for files)
+  - Fixed path duplication when file_path already includes the path prefix
+  - Resolved test failures in `test_filestore_s3_write_csv_append`, `test_full_pipeline_csv_s3`, `test_full_pipeline_json_s3`, `test_multiple_batches_append_s3`, `test_s3_overwrite_deletes_all_files`, `test_filestore_s3_read_csv_single_file`, `test_filestore_s3_read_json`, `test_filestore_s3_read_jsonl`, and `test_s3_file_url_building`
+
 ### In Progress
 - Milestone 9: Comprehensive Integration Tests
 - Milestone 10: Top 10 Datastores Connectors
