@@ -1,9 +1,12 @@
 """Add column transform implementation."""
 
 import re
+from datetime import datetime
 from typing import Any
 
-from dataloader.core.batch import Batch, DictBatch
+import pyarrow as pa
+
+from dataloader.core.batch import ArrowBatch, Batch
 from dataloader.core.exceptions import TransformError
 from dataloader.transforms.registry import register_transform
 
@@ -51,7 +54,7 @@ class AddColumnTransform:
         self._context = config.get("context", {})
 
     def apply(self, batch: Batch) -> Batch:
-        """Add new column to batch with constant value.
+        """Add new column to batch with constant value using Arrow-native operations.
 
         Args:
             batch: Input batch to extend.
@@ -62,6 +65,12 @@ class AddColumnTransform:
         Raises:
             TransformError: If column already exists.
         """
+        if not isinstance(batch, ArrowBatch):
+            raise TransformError(
+                "AddColumnTransform requires ArrowBatch",
+                context={"batch_type": type(batch).__name__},
+            )
+
         if self._name in batch.columns:
             raise TransformError(
                 f"Column '{self._name}' already exists",
@@ -73,14 +82,48 @@ class AddColumnTransform:
 
         resolved_value = self._resolve_value(self._value)
 
-        new_columns = batch.columns.copy() + [self._name]
-        new_rows = [row.copy() + [resolved_value] for row in batch.rows]
+        # Get Arrow table
+        arrow_table = batch.to_arrow()
 
-        return DictBatch(
-            columns=new_columns,
-            rows=new_rows,
+        # Create a new column array with constant value for all rows
+        num_rows = len(arrow_table)
+        
+        # Infer Arrow type from the value
+        arrow_type = self._infer_arrow_type(resolved_value)
+        
+        # Create array with constant value
+        if resolved_value is None:
+            new_array = pa.nulls(num_rows, type=arrow_type)
+        else:
+            # Create array by repeating the value
+            new_array = pa.array([resolved_value] * num_rows, type=arrow_type)
+
+        # Append column to table
+        new_field = pa.field(self._name, arrow_type, nullable=True)
+        new_table = arrow_table.append_column(new_field, new_array)
+
+        return ArrowBatch(
+            new_table,
             metadata=batch.metadata.copy(),
         )
+
+    def _infer_arrow_type(self, value: Any) -> pa.DataType:
+        """Infer Arrow type from Python value."""
+        if value is None:
+            return pa.null()
+        elif isinstance(value, bool):
+            return pa.bool_()
+        elif isinstance(value, int):
+            return pa.int64()
+        elif isinstance(value, float):
+            return pa.float64()
+        elif isinstance(value, str):
+            return pa.string()
+        elif isinstance(value, datetime):
+            return pa.timestamp("us")
+        else:
+            # Default to string for unknown types
+            return pa.string()
 
     def _resolve_value(self, value: Any) -> Any:
         """Resolve value, handling template expressions.

@@ -2,7 +2,9 @@
 
 from typing import Any
 
-from dataloader.core.batch import Batch, DictBatch
+import pyarrow as pa
+
+from dataloader.core.batch import ArrowBatch, Batch
 from dataloader.core.exceptions import TransformError
 from dataloader.transforms.registry import register_transform
 
@@ -38,7 +40,7 @@ class RenameColumnsTransform:
         self._mapping = mapping
 
     def apply(self, batch: Batch) -> Batch:
-        """Apply column renames to batch.
+        """Apply column renames to batch using Arrow-native operations.
 
         Args:
             batch: Input batch with columns to rename.
@@ -49,15 +51,27 @@ class RenameColumnsTransform:
         Raises:
             TransformError: If any mapping key doesn't exist in batch columns.
         """
+        if not isinstance(batch, ArrowBatch):
+            raise TransformError(
+                "RenameColumnsTransform requires ArrowBatch",
+                context={"batch_type": type(batch).__name__},
+            )
+
         self._validate_columns_exist(batch.columns)
 
+        # Get Arrow table
+        arrow_table = batch.to_arrow()
+
+        # Build new column names (apply mapping)
         new_columns = [
             self._mapping.get(col, col) for col in batch.columns
         ]
 
-        return DictBatch(
-            columns=new_columns,
-            rows=[row.copy() for row in batch.rows],
+        # Use Arrow's native rename_columns for zero-copy operation
+        renamed_table = arrow_table.rename_columns(new_columns)
+
+        return ArrowBatch(
+            renamed_table,
             metadata=batch.metadata.copy(),
         )
 

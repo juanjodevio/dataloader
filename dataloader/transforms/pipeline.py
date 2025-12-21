@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from dataloader.core.batch import Batch, DictBatch
+from dataloader.core.batch import ArrowBatch, Batch
 from dataloader.core.exceptions import TransformError
 from dataloader.models.transform_config import TransformConfig, TransformStep
 from dataloader.transforms.registry import Transform, get_transform

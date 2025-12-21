@@ -3,11 +3,14 @@
 from datetime import datetime
 from typing import Any
 
-from dataloader.core.batch import Batch, DictBatch
+import pyarrow as pa
+
+from dataloader.core.batch import ArrowBatch, Batch
 from dataloader.core.exceptions import TransformError
+from dataloader.core.type_mapping import string_to_arrow_type
 from dataloader.transforms.registry import register_transform
 
-# Supported type converters
+# Supported type converters (for Python values)
 _TYPE_CONVERTERS: dict[str, type | Any] = {
     "str": str,
     "int": int,
@@ -79,7 +82,7 @@ class CastColumnsTransform:
             )
 
     def apply(self, batch: Batch) -> Batch:
-        """Apply type casts to specified columns.
+        """Apply type casts to specified columns using Arrow-native operations.
 
         Args:
             batch: Input batch with columns to cast.
@@ -90,49 +93,54 @@ class CastColumnsTransform:
         Raises:
             TransformError: If column doesn't exist or conversion fails.
         """
+        if not isinstance(batch, ArrowBatch):
+            raise TransformError(
+                "CastColumnsTransform requires ArrowBatch",
+                context={"batch_type": type(batch).__name__},
+            )
+
         self._validate_columns_exist(batch.columns)
 
-        column_indices = {col: i for i, col in enumerate(batch.columns)}
-        cast_indices = {
-            column_indices[col]: _TYPE_CONVERTERS[typ]
-            for col, typ in self._columns.items()
-        }
+        # Get Arrow table
+        arrow_table = batch.to_arrow()
+        original_schema = arrow_table.schema
 
-        new_rows = []
-        for row_index, row in enumerate(batch.rows):
-            new_row = self._cast_row(row, cast_indices, row_index)
-            new_rows.append(new_row)
+        # Build new schema with cast types
+        new_fields = []
+        for i, field in enumerate(original_schema):
+            col_name = field.name
+            if col_name in self._columns:
+                target_type_str = self._columns[col_name]
+                try:
+                    target_arrow_type = string_to_arrow_type(target_type_str)
+                except ValueError as e:
+                    raise TransformError(
+                        f"Unsupported type for casting: {target_type_str}",
+                        context={"column": col_name, "target_type": target_type_str, "error": str(e)},
+                    ) from e
+                new_fields.append(pa.field(col_name, target_arrow_type, nullable=field.nullable))
+            else:
+                new_fields.append(field)
 
-        return DictBatch(
-            columns=batch.columns.copy(),
-            rows=new_rows,
+        new_schema = pa.schema(new_fields)
+
+        # Use Arrow's cast method
+        try:
+            cast_table = arrow_table.cast(new_schema, safe=False)
+        except (pa.ArrowInvalid, pa.ArrowTypeError) as e:
+            raise TransformError(
+                f"Cast failed: {e}",
+                context={
+                    "columns": self._columns,
+                    "error": str(e),
+                },
+            ) from e
+
+        return ArrowBatch(
+            cast_table,
             metadata=batch.metadata.copy(),
         )
 
-    def _cast_row(
-        self,
-        row: list[Any],
-        cast_indices: dict[int, Any],
-        row_index: int,
-    ) -> list[Any]:
-        """Cast values in a single row."""
-        new_row = row.copy()
-        for col_index, converter in cast_indices.items():
-            original_value = row[col_index]
-            try:
-                if original_value is not None:
-                    new_row[col_index] = converter(original_value)
-            except (ValueError, TypeError) as e:
-                raise TransformError(
-                    f"Cast failed for row {row_index}",
-                    context={
-                        "row_index": row_index,
-                        "column_index": col_index,
-                        "original_value": original_value,
-                        "error": str(e),
-                    },
-                ) from e
-        return new_row
 
     def _validate_columns_exist(self, columns: list[str]) -> None:
         """Validate all target columns exist in batch."""
