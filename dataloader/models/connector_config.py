@@ -10,6 +10,11 @@ from typing import Protocol, Union
 # Import connector-specific configs from their respective modules
 from dataloader.connectors.csv.config import CSVConnectorConfig
 from dataloader.connectors.duckdb.config import DuckDBConnectorConfig
+from dataloader.connectors.filestore.config import (
+    FileStoreConfigType,
+    LocalFileStoreConfig,
+    S3FileStoreConfig,
+)
 from dataloader.connectors.postgres.config import PostgresConnectorConfig
 from dataloader.connectors.s3.config import S3ConnectorConfig
 
@@ -31,6 +36,7 @@ ConnectorConfigType = Union[
     S3ConnectorConfig,
     CSVConnectorConfig,
     DuckDBConnectorConfig,
+    FileStoreConfigType,  # Includes S3FileStoreConfig, LocalFileStoreConfig
 ]
 
 # Re-export all config classes for convenience
@@ -41,4 +47,7 @@ __all__ = [
     "S3ConnectorConfig",
     "CSVConnectorConfig",
     "DuckDBConnectorConfig",
+    "FileStoreConfigType",
+    "S3FileStoreConfig",
+    "LocalFileStoreConfig",
 ]
