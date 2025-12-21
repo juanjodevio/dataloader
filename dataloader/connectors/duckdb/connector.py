@@ -2,10 +2,15 @@
 
 from typing import Any, Iterable, Union
 
-import duckdb
-from duckdb import DuckDBPyConnection
-
 from dataloader.connectors.registry import ConnectorConfigUnion, register_connector
+
+try:
+    import duckdb
+    from duckdb import DuckDBPyConnection
+except ImportError:
+    duckdb = None  # type: ignore
+    DuckDBPyConnection = None  # type: ignore
+
 import pyarrow as pa
 
 from dataloader.core.batch import ArrowBatch, Batch
@@ -46,7 +51,15 @@ class DuckDBConnector:
         Args:
             config: DuckDB connector configuration (DuckDBConnectorConfig, SourceConfig, or DestinationConfig).
                 All configuration, including connection parameters, should be in the config parameter.
+
+        Raises:
+            ImportError: If required dependencies are not installed (install with: pip install dataloader[duckdb])
         """
+        if duckdb is None:
+            raise ImportError(
+                "DuckDBConnector requires duckdb. "
+                "Install it with: pip install dataloader[duckdb]"
+            )
         self._config = config
 
         # Extract config values

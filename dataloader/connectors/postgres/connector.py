@@ -2,13 +2,25 @@
 
 from typing import Any, Iterable, Union
 
-from sqlalchemy import create_engine, inspect, text
-from sqlalchemy.engine import Engine
-from sqlalchemy.exc import SQLAlchemyError
-
 from dataloader.connectors.registry import ConnectorConfigUnion, register_connector
-import pandas as pd
+
+try:
+    import pandas as pd
+except ImportError:
+    pd = None  # type: ignore
+
 import pyarrow as pa
+
+try:
+    from sqlalchemy import create_engine, inspect, text
+    from sqlalchemy.engine import Engine
+    from sqlalchemy.exc import SQLAlchemyError
+except ImportError:
+    create_engine = None  # type: ignore
+    inspect = None  # type: ignore
+    text = None  # type: ignore
+    Engine = None  # type: ignore
+    SQLAlchemyError = None  # type: ignore
 
 from dataloader.core.batch import ArrowBatch, Batch
 from dataloader.core.exceptions import ConnectorError
@@ -40,7 +52,15 @@ class PostgresConnector:
         Args:
             config: PostgreSQL connector configuration (PostgresConnectorConfig, SourceConfig, or DestinationConfig).
                 All configuration, including connection parameters, should be in the config parameter.
+
+        Raises:
+            ImportError: If required dependencies are not installed (install with: pip install dataloader[postgres])
         """
+        if create_engine is None or pd is None:
+            raise ImportError(
+                "PostgresConnector requires sqlalchemy and pandas. "
+                "Install them with: pip install dataloader[postgres]"
+            )
         self._config = config
 
         # Extract config values

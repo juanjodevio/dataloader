@@ -7,16 +7,10 @@ requires-python = ">=3.9"
 dependencies = [
     "pydantic>=2.0",
     "pyyaml>=6.0",
-    "pyarrow>=14.0",
-    "psycopg2-binary>=2.9",
-    "boto3>=1.28",
-    "duckdb>=0.9",
-    "pandas>=2.0",
-    "sqlalchemy>=2.0.0",
-    "fsspec>=2023.1.0",
-    "s3fs>=2023.1.0",
     "click>=8.0",
     "json-log-formatter>=0.5.0",
+    "pyarrow>=14.0",
+    "fsspec>=2023.1.0",
 ]
 authors = [
     {name = "DataLoader Contributors"},
@@ -33,6 +27,29 @@ classifiers = [
 ]
 
 [project.optional-dependencies]
+postgres = [
+    "psycopg2-binary>=2.9",
+    "sqlalchemy>=2.0.0",
+    "pandas>=2.0",
+]
+s3 = [
+    "boto3>=1.28",
+    "s3fs>=2023.1.0",
+]
+duckdb = [
+    "duckdb>=0.9",
+]
+parquet = [
+    "pandas>=2.0",
+]
+all = [
+    "psycopg2-binary>=2.9",
+    "sqlalchemy>=2.0.0",
+    "pandas>=2.0",
+    "boto3>=1.28",
+    "s3fs>=2023.1.0",
+    "duckdb>=0.9",
+]
 dev = [
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",

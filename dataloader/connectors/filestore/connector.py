@@ -62,6 +62,15 @@ class FileStoreConnector:
             self._format = "csv"  # Default format
             self._write_mode = config.write_mode
 
+        # Check S3-specific dependencies if using S3 backend
+        if self._backend == "s3":
+            try:
+                import s3fs  # noqa: F401
+            except ImportError:
+                raise ImportError(
+                    "S3 backend requires s3fs. Install it with: pip install dataloader[s3]"
+                )
+
         # Reading configuration (using defaults)
         self._batch_size = DEFAULT_BATCH_SIZE
         self._encoding = DEFAULT_ENCODING

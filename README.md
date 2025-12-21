@@ -19,16 +19,52 @@ DataLoader enables you to define data pipelines using simple YAML recipes, handl
 
 ## Installation
 
-Install the package in development mode:
+### Installation
+
+Install the core package (includes pyarrow and fsspec for core functionality):
+
+```bash
+pip install dataloader
+```
+
+### With Optional Dependencies
+
+Install with specific connector support:
+
+```bash
+# PostgreSQL connector
+pip install dataloader[postgres]
+
+# S3 connector
+pip install dataloader[s3]
+
+# DuckDB connector
+pip install dataloader[duckdb]
+
+# Parquet format support
+pip install dataloader[parquet]
+
+# Multiple connectors
+pip install dataloader[postgres,duckdb]
+pip install dataloader[s3,parquet]
+
+# All connectors and formats
+pip install dataloader[all]
+```
+
+### Development Installation
+
+For development with all dependencies and test tools:
+
+```bash
+pip install -e ".[all,dev]"
+```
+
+Or install dependencies separately:
 
 ```bash
 pip install -e .
-```
-
-Or install dependencies:
-
-```bash
-pip install -r requirements.txt
+pip install -r requirements.txt  # if available
 ```
 
 ## Quick Start
@@ -262,13 +298,29 @@ Key components:
 ## Supported Connectors
 
 ### Sources
-- **Postgres**: PostgreSQL databases with SQLAlchemy
-- **CSV**: Local CSV files
-- **S3**: S3 objects via boto3 and fsspec
+- **Postgres**: PostgreSQL databases with SQLAlchemy (requires `[postgres]` extra)
+- **FileStore**: Local filesystem or S3 files (CSV, JSON, JSONL, Parquet)
+  - Local filesystem: uses fsspec (included in core)
+  - S3 backend: requires `[s3]` extra (boto3, s3fs)
+  - Parquet format: requires `[parquet]` extra (pandas)
 
 ### Destinations
-- **DuckDB**: DuckDB databases (file-based or in-memory)
-- **S3**: S3 destinations with various formats
+- **DuckDB**: DuckDB databases (file-based or in-memory) (requires `[duckdb]` extra)
+- **FileStore**: Local filesystem or S3 files with various formats
+  - Parquet format: requires `[parquet]` extra (pandas)
+
+### Optional Dependencies
+
+DataLoader uses optional dependencies for connector-specific functionality. Core dependencies (pyarrow, fsspec) are always included:
+
+- **`[postgres]`**: PostgreSQL connector (psycopg2-binary, sqlalchemy, pandas)
+- **`[s3]`**: S3 connector (boto3, s3fs)
+- **`[duckdb]`**: DuckDB connector (duckdb)
+- **`[parquet]`**: Parquet format support (pandas)
+- **`[all]`**: All optional dependencies
+- **`[dev]`**: Development dependencies (pytest, pytest-cov, moto)
+
+**Note**: The core package includes essential dependencies (pydantic, pyyaml, click, json-log-formatter, pyarrow, fsspec). Connectors will raise clear `ImportError` messages if required optional dependencies are missing.
 
 ## Transform Types
 
