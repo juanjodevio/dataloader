@@ -13,8 +13,12 @@ from dataloader.core.exceptions import (
 from dataloader.core.schema import (
     Column,
     EvolutionPolicy,
+    InferenceResult,
     Schema,
+    SchemaEvolution,
     SchemaMode,
+    SchemaUpdate,
+    TypeInferrer,
 )
 from dataloader.core.state import State
 from dataloader.core.state_backend import LocalStateBackend, StateBackend
@@ -36,4 +40,8 @@ __all__ = [
     "Column",
     "SchemaMode",
     "EvolutionPolicy",
+    "TypeInferrer",
+    "InferenceResult",
+    "SchemaEvolution",
+    "SchemaUpdate",
 ]

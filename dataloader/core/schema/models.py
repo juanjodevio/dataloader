@@ -2,14 +2,20 @@
 
 This module provides schema definitions, validation modes, and evolution
 policies for managing data schemas across the data loading pipeline.
+
+NOTE: This is a temporary implementation for Phase 1. Schema evolution
+will be redesigned in Phase 2 to align with dlt's approach, including:
+- Variant columns for type changes (e.g., column__v_text)
+- Schema contracts with modes (evolve, freeze, discard_rows, discard_columns)
+- Column lineage tracking
+- Better handling of removed/renamed columns
 """
 
 from enum import Enum
 from typing import Any, Optional
 
-from pydantic import BaseModel, Field
-
 import pyarrow as pa
+from pydantic import BaseModel, Field
 
 
 class SchemaMode(str, Enum):
@@ -21,10 +27,7 @@ class SchemaMode(str, Enum):
 
 
 class Column(BaseModel):
-    """Schema definition for a single column.
-
-    Defines the expected type, nullability, and constraints for a column.
-    """
+    """Schema definition for a single column."""
 
     name: str = Field(description="Column name")
     type: str = Field(description="Column type (e.g., 'int', 'str', 'datetime')")
@@ -40,13 +43,18 @@ class Column(BaseModel):
     metadata: dict[str, Any] = Field(
         default_factory=dict, description="Additional column metadata"
     )
+    variant_of: Optional[str] = Field(
+        default=None,
+        description="Base column name if this is a variant column created due to type change",
+    )
+    lineage: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Lineage metadata (e.g., add_time, data_type, load_id)",
+    )
 
 
 class EvolutionPolicy(BaseModel):
-    """Policy for handling schema evolution.
-
-    Defines rules for how schemas can change over time.
-    """
+    """Policy for handling schema evolution."""
 
     allow_new_columns: bool = Field(
         default=True, description="Allow new columns to be added to schema"
@@ -60,10 +68,7 @@ class EvolutionPolicy(BaseModel):
 
 
 class Schema(BaseModel):
-    """Complete schema definition for a dataset.
-
-    Contains column definitions, metadata, and version information.
-    """
+    """Complete schema definition for a dataset."""
 
     columns: list[Column] = Field(description="List of column definitions")
     mode: SchemaMode = Field(
@@ -80,44 +85,21 @@ class Schema(BaseModel):
     )
 
     def get_column(self, name: str) -> Optional[Column]:
-        """Get column schema by name.
-
-        Args:
-            name: Column name
-
-        Returns:
-            Column if found, None otherwise
-        """
         for col in self.columns:
             if col.name == name:
                 return col
         return None
 
     def get_column_names(self) -> list[str]:
-        """Get list of column names in schema.
-
-        Returns:
-            List of column names
-        """
         return [col.name for col in self.columns]
 
     def to_arrow_schema(self) -> pa.Schema:
-        """Convert schema to PyArrow Schema.
-
-        Returns:
-            PyArrow Schema object
-        """
         from dataloader.core.type_mapping import string_to_arrow_type
 
         fields = []
         for col in self.columns:
             arrow_type = string_to_arrow_type(col.type)
-            # Arrow types are nullable by default, but we can make them non-nullable
-            # if the schema specifies it
             if not col.nullable:
-                # Note: Arrow doesn't support non-nullable types directly in all cases
-                # This is a simplified approach - full implementation would need
-                # to handle this more carefully
                 pass
             fields.append(pa.field(col.name, arrow_type, nullable=col.nullable))
 
@@ -125,14 +107,6 @@ class Schema(BaseModel):
 
     @classmethod
     def from_arrow_schema(cls, arrow_schema: pa.Schema) -> "Schema":
-        """Create Schema from PyArrow Schema.
-
-        Args:
-            arrow_schema: PyArrow Schema object
-
-        Returns:
-            Schema instance
-        """
         from dataloader.core.type_mapping import arrow_type_to_string
 
         columns = []
@@ -147,3 +121,4 @@ class Schema(BaseModel):
             )
 
         return cls(columns=columns)
+
