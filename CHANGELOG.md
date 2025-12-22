@@ -10,6 +10,8 @@ DataLoader uses beta versioning: `0.0.0b1`, `0.0.0b2`, etc.
 
 ## [Unreleased]
 
+## [0.0.0b5] - 2025-01-19
+
 ### Added
 - **LICENSE file**: Added MIT License for open source distribution
 - **CONTRIBUTING.md**: Added comprehensive contribution guidelines including:
@@ -22,6 +24,11 @@ DataLoader uses beta versioning: `0.0.0b1`, `0.0.0b2`, etc.
 - **Version constant**: Added `__version__` to `dataloader/__init__.py` for programmatic version access
 - **.editorconfig**: Added EditorConfig for consistent code formatting across editors
 - **License metadata**: Added license field to `pyproject.toml`
+- **Schema management (Phase 2-6)**:
+  - New schema package with models, inference (reflection levels), evolution (variant columns), contracts, validation, registry, lineage, and storage backends (in-memory, local JSON)
+  - Engine integration: batch validation (sequential and async), contract enforcement, optional column dropping, schema updates during infer mode
+  - Recipe schema config (`schema` / `schema_config`): mode, reflection_level, contracts, evolution policy, columns
+  - Tests for inference, evolution, validation/contracts, registry/lineage, schema config
 
 ### Fixed
 - **Version consistency**: Fixed version inconsistency between `pyproject.toml` (now `0.0.0b4`) and CHANGELOG
@@ -35,9 +42,6 @@ DataLoader uses beta versioning: `0.0.0b1`, `0.0.0b2`, etc.
 ### Changed
 - **README.md**: Updated to reference LICENSE and CONTRIBUTING.md files
 
-### In Progress
-- Milestone 9: Comprehensive Integration Tests
-- Milestone 10: Top 10 Datastores Connectors
 
 ---
 
