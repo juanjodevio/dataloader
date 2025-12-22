@@ -3,16 +3,19 @@
 import asyncio
 import logging
 import time
-from typing import Any
+from typing import Any, Optional
 
 from dataloader.connectors import get_connector
-from dataloader.core.batch import Batch
+from dataloader.core.batch import ArrowBatch, Batch
 from dataloader.core.exceptions import EngineError
 from dataloader.core.metrics import MetricsCollector
 from dataloader.core.parallel import AsyncParallelExecutor, run_async
+from dataloader.core.schema import Schema, SchemaValidator
 from dataloader.core.state import State
 from dataloader.core.state_backend import StateBackend
 from dataloader.models.destination_config import DestinationConfig
+from dataloader.models.recipe import Recipe
+from dataloader.models.schema_config import SchemaConfig
 from dataloader.models.source_config import SourceConfig
 from dataloader.models.transform_config import TransformConfig
 from dataloader.transforms import TransformPipeline
@@ -21,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 
 def execute(
-    recipe: Any,  # Recipe type will be defined in models phase
+    recipe: Recipe,
     state_backend: StateBackend,
 ) -> None:
     """Execute a recipe to load data from source to destination.
@@ -62,7 +65,7 @@ def execute(
 
 
 def _execute_sequential(
-    recipe: Any,
+    recipe: Recipe,
     state_backend: StateBackend,
 ) -> None:
     """Execute recipe sequentially (one batch at a time)."""
@@ -82,6 +85,8 @@ def _execute_sequential(
         transformer = _get_transformer(recipe.transform)
         destination = _get_connector(recipe.destination)
 
+        schema_validator, current_schema = _build_schema_context(recipe.schema_config)
+
         for batch in source.read_batches(state):
             batch_start = time.time()
 
@@ -94,6 +99,11 @@ def _execute_sequential(
             )
 
             try:
+                if schema_validator and current_schema:
+                    batch, current_schema = _validate_batch(
+                        recipe.name, batch, current_schema, schema_validator
+                    )
+
                 batch = transformer.apply(batch)
                 destination.write_batch(batch, state)
 
@@ -139,7 +149,7 @@ def _execute_sequential(
 
 
 async def _execute_async(
-    recipe: Any,
+    recipe: Recipe,
     state_backend: StateBackend,
 ) -> None:
     """Execute recipe with async parallelism."""
@@ -173,6 +183,8 @@ async def _execute_async(
         transformer = _get_transformer(recipe.transform)
         destination = _get_connector(recipe.destination)
 
+        schema_validator, current_schema = _build_schema_context(recipe.schema_config)
+
         # Collect all batches first (needed for parallel processing)
         batches = list(source.read_batches(state))
 
@@ -197,10 +209,17 @@ async def _execute_async(
                 )
 
                 try:
+                    if schema_validator and current_schema:
+                        batch_, current_schema = _validate_batch(
+                            recipe.name, batch, current_schema, schema_validator
+                        )
+                    else:
+                        batch_ = batch
+
                     # Transform (sync, run in executor)
                     loop = asyncio.get_event_loop()
                     transformed_batch = await loop.run_in_executor(
-                        None, transformer.apply, batch
+                        None, transformer.apply, batch_
                     )
 
                     # Write (sync, run in executor)
@@ -299,3 +318,45 @@ def _get_transformer(transform_config: TransformConfig) -> TransformPipeline:
             f"Failed to create transform pipeline: {e}",
             context={"transform_steps": len(transform_config.steps)},
         ) from e
+
+
+def _build_schema_context(
+    schema_config: Optional[SchemaConfig],
+) -> tuple[Optional[SchemaValidator], Optional[Schema]]:
+    if not schema_config:
+        return None, None
+    validator = SchemaValidator(
+        mode=schema_config.mode,
+        contracts=schema_config.contracts,
+    )
+    return validator, schema_config.to_schema()
+
+
+def _validate_batch(
+    recipe_name: str,
+    batch: Batch,
+    schema: Schema,
+    validator: SchemaValidator,
+) -> tuple[Batch, Schema]:
+    if not hasattr(batch, "to_arrow"):
+        raise EngineError(
+            "Schema validation requires Arrow-compatible batch",
+            context={"recipe_name": recipe_name},
+        )
+
+    table = batch.to_arrow()
+    result = validator.validate(table, schema)
+
+    if not result.ok:
+        messages = "; ".join(issue.message for issue in result.errors)
+        raise EngineError(
+            f"Schema validation failed: {messages}",
+            context={"recipe_name": recipe_name},
+        )
+
+    new_table = table
+    if result.dropped_columns:
+        new_table = new_table.drop(result.dropped_columns)
+
+    new_batch = ArrowBatch(new_table, metadata=getattr(batch, "metadata", {}))
+    return new_batch, result.validated_schema
