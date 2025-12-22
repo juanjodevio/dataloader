@@ -2,16 +2,19 @@
 
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 from dataloader.models.destination_config import DestinationConfig
 from dataloader.models.runtime_config import RuntimeConfig
+from dataloader.models.schema_config import SchemaConfig
 from dataloader.models.source_config import SourceConfig
 from dataloader.models.transform_config import TransformConfig
 
 
 class Recipe(BaseModel):
     """Complete recipe definition for data loading pipeline."""
+
+    model_config = ConfigDict(protected_namespaces=(), populate_by_name=True)
 
     name: str = Field(description="Recipe name (required)")
     extends: Optional[str] = Field(
@@ -22,6 +25,11 @@ class Recipe(BaseModel):
     destination: DestinationConfig = Field(description="Destination configuration")
     runtime: RuntimeConfig = Field(
         default_factory=RuntimeConfig, description="Runtime configuration"
+    )
+    schema_config: SchemaConfig | None = Field(
+        default=None,
+        description="Optional schema configuration",
+        alias="schema",
     )
 
     @classmethod
