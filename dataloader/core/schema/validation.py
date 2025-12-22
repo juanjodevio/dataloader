@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 
 from dataloader.core.schema.contracts import ContractMode, SchemaContracts
 from dataloader.core.schema.models import Column, Schema, SchemaMode
-from dataloader.core.type_mapping import arrow_type_to_string, string_to_arrow_type
+from dataloader.core.type_mapping import arrow_type_to_string, normalize_type
 
 
 class ValidationIssue(BaseModel):
@@ -23,6 +23,7 @@ class ValidationResult(BaseModel):
     warnings: List[ValidationIssue] = Field(default_factory=list)
     dropped_columns: List[str] = Field(default_factory=list)
     validated_schema: Schema
+    dropped_rows: bool = False
 
     @property
     def ok(self) -> bool:
@@ -50,6 +51,7 @@ class SchemaValidator:
         warnings: List[ValidationIssue] = []
         dropped: List[str] = []
         new_columns: List[Column] = list(schema.columns)
+        drop_rows = False
 
         # Extra columns in data
         for name, field in table_fields.items():
@@ -59,6 +61,10 @@ class SchemaValidator:
             if mode == ContractMode.DISCARD_COLUMNS:
                 dropped.append(name)
                 warnings.append(ValidationIssue(level="warning", message=f"dropped column '{name}'", column=name))
+                continue
+            if mode == ContractMode.DISCARD_ROWS:
+                drop_rows = True
+                warnings.append(ValidationIssue(level="warning", message=f"dropped rows due to extra column '{name}'", column=name))
                 continue
             if self.mode == SchemaMode.STRICT or mode == ContractMode.FREEZE:
                 errors.append(ValidationIssue(level="error", message=f"unexpected column '{name}'", column=name))
@@ -82,6 +88,10 @@ class SchemaValidator:
             if name in table_fields:
                 continue
             mode = self.contracts.column_mode(name, col.type)
+            if mode == ContractMode.DISCARD_ROWS:
+                drop_rows = True
+                warnings.append(ValidationIssue(level="warning", message=f"dropped rows due to missing column '{name}'", column=name))
+                continue
             if self.mode == SchemaMode.STRICT or mode == ContractMode.FREEZE:
                 errors.append(ValidationIssue(level="error", message=f"missing column '{name}'", column=name))
             else:
@@ -91,11 +101,15 @@ class SchemaValidator:
         for name, field in table_fields.items():
             if name not in schema_map:
                 continue
-            expected = self._normalize_type(schema_map[name].type)
-            actual = self._normalize_type(arrow_type_to_string(field.type))
+            expected = normalize_type(schema_map[name].type)
+            actual = normalize_type(arrow_type_to_string(field.type))
             if expected == actual:
                 continue
             mode = self.contracts.column_mode(name, actual)
+            if mode == ContractMode.DISCARD_ROWS:
+                drop_rows = True
+                warnings.append(ValidationIssue(level="warning", message=f"dropped rows due to type mismatch for '{name}'", column=name))
+                continue
             if mode == ContractMode.FREEZE:
                 errors.append(
                     ValidationIssue(
@@ -128,26 +142,6 @@ class SchemaValidator:
             warnings=warnings,
             dropped_columns=dropped,
             validated_schema=updated_schema,
+            dropped_rows=drop_rows,
         )
-
-    def _normalize_type(self, type_str: str) -> str:
-        aliases = {
-            "int64": "int",
-            "bigint": "int",
-            "integer": "int",
-            "float64": "float",
-            "double": "float",
-            "bool": "bool",
-            "boolean": "bool",
-            "timestamp[us]": "datetime",
-            "timestamp[ns]": "datetime",
-        }
-        lowered = type_str.lower()
-        if lowered in aliases:
-            return aliases[lowered]
-        try:
-            arrow_type = string_to_arrow_type(type_str)
-            return arrow_type_to_string(arrow_type)
-        except ValueError:
-            return lowered
 

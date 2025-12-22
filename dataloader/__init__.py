@@ -4,7 +4,7 @@ A declarative data loading engine built around YAML recipes, enabling
 robust EL workflows with minimal code.
 """
 
-__version__ = "0.0.0b4"
+__version__ = "0.0.0b5"
 
 # Public API
 from dataloader.api import from_yaml, run_recipe, run_recipe_from_yaml

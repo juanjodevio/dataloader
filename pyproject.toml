@@ -1,6 +1,6 @@
 [project]
 name = "dataloader"
-version = "0.0.0b4"
+version = "0.0.0b5"
 description = "Recipe-driven data loading framework for declarative EL workflows"
 readme = "README.md"
 requires-python = ">=3.9"

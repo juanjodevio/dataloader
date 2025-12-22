@@ -10,7 +10,13 @@ from dataloader.core.batch import ArrowBatch, Batch
 from dataloader.core.exceptions import EngineError
 from dataloader.core.metrics import MetricsCollector
 from dataloader.core.parallel import AsyncParallelExecutor, run_async
-from dataloader.core.schema import Schema, SchemaValidator
+from dataloader.core.schema import (
+    InMemorySchemaStorage,
+    Schema,
+    SchemaEvolution,
+    SchemaRegistry,
+    SchemaValidator,
+)
 from dataloader.core.state import State
 from dataloader.core.state_backend import StateBackend
 from dataloader.models.destination_config import DestinationConfig
@@ -85,7 +91,9 @@ def _execute_sequential(
         transformer = _get_transformer(recipe.transform)
         destination = _get_connector(recipe.destination)
 
-        schema_validator, current_schema = _build_schema_context(recipe.schema_config)
+        schema_validator, current_schema, evolution, registry = _build_schema_context(
+            recipe.name, recipe.schema_config
+        )
 
         for batch in source.read_batches(state):
             batch_start = time.time()
@@ -101,8 +109,15 @@ def _execute_sequential(
             try:
                 if schema_validator and current_schema:
                     batch, current_schema = _validate_batch(
-                        recipe.name, batch, current_schema, schema_validator
+                        recipe.name,
+                        batch,
+                        current_schema,
+                        schema_validator,
+                        evolution,
+                        registry,
                     )
+                    if batch.row_count == 0:
+                        continue
 
                 batch = transformer.apply(batch)
                 destination.write_batch(batch, state)
@@ -183,7 +198,9 @@ async def _execute_async(
         transformer = _get_transformer(recipe.transform)
         destination = _get_connector(recipe.destination)
 
-        schema_validator, current_schema = _build_schema_context(recipe.schema_config)
+        schema_validator, current_schema, evolution, registry = _build_schema_context(
+            recipe.name, recipe.schema_config
+        )
 
         # Collect all batches first (needed for parallel processing)
         batches = list(source.read_batches(state))
@@ -211,8 +228,15 @@ async def _execute_async(
                 try:
                     if schema_validator and current_schema:
                         batch_, current_schema = _validate_batch(
-                            recipe.name, batch, current_schema, schema_validator
+                            recipe.name,
+                            batch,
+                            current_schema,
+                            schema_validator,
+                            evolution,
+                            registry,
                         )
+                        if batch_.row_count == 0:
+                            return
                     else:
                         batch_ = batch
 
@@ -321,15 +345,21 @@ def _get_transformer(transform_config: TransformConfig) -> TransformPipeline:
 
 
 def _build_schema_context(
-    schema_config: Optional[SchemaConfig],
-) -> tuple[Optional[SchemaValidator], Optional[Schema]]:
+    recipe_name: str, schema_config: Optional[SchemaConfig]
+) -> tuple[Optional[SchemaValidator], Optional[Schema], Optional[SchemaEvolution], Optional[SchemaRegistry]]:
     if not schema_config:
-        return None, None
+        return None, None, None, None
     validator = SchemaValidator(
         mode=schema_config.mode,
         contracts=schema_config.contracts,
     )
-    return validator, schema_config.to_schema()
+    base_schema = schema_config.to_schema()
+    registry = SchemaRegistry(
+        storage=InMemorySchemaStorage(),
+        evolution=SchemaEvolution(),
+    )
+    registry.register(recipe_name, base_schema, version=schema_config.version or "initial")
+    return validator, base_schema, registry.evolution, registry
 
 
 def _validate_batch(
@@ -337,6 +367,8 @@ def _validate_batch(
     batch: Batch,
     schema: Schema,
     validator: SchemaValidator,
+    evolution: Optional[SchemaEvolution],
+    registry: Optional[SchemaRegistry],
 ) -> tuple[Batch, Schema]:
     if not hasattr(batch, "to_arrow"):
         raise EngineError(
@@ -355,8 +387,16 @@ def _validate_batch(
         )
 
     new_table = table
-    if result.dropped_columns:
+    if result.dropped_rows:
+        new_table = new_table.slice(0, 0)
+    elif result.dropped_columns:
         new_table = new_table.drop(result.dropped_columns)
 
+    new_schema = result.validated_schema
+
+    if evolution and registry:
+        new_schema, _ = evolution.apply(schema, new_schema)
+        registry.register(recipe_name, new_schema)
+
     new_batch = ArrowBatch(new_table, metadata=getattr(batch, "metadata", {}))
-    return new_batch, result.validated_schema
+    return new_batch, new_schema

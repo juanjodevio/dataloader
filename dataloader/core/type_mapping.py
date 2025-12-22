@@ -23,6 +23,19 @@ STRING_TO_ARROW_TYPE: dict[str, pa.DataType] = {
     "date": pa.date32(),
 }
 
+ALIASES: dict[str, str] = {
+    "int64": "int",
+    "bigint": "int",
+    "integer": "int",
+    "str": "string",
+    "float64": "float",
+    "double": "float",
+    "bool": "bool",
+    "boolean": "bool",
+    "timestamp[us]": "datetime",
+    "timestamp[ns]": "datetime",
+}
+
 
 def string_to_arrow_type(type_name: str) -> pa.DataType:
     """Convert string type name to Arrow type.
@@ -62,6 +75,17 @@ def arrow_type_to_string(arrow_type: pa.DataType) -> str:
             if name in ("str", "int", "float", "bool", "datetime"):
                 return name
     return str(arrow_type)
+
+
+def normalize_type(type_str: str) -> str:
+    lowered = type_str.lower()
+    if lowered in ALIASES:
+        return ALIASES[lowered]
+    try:
+        canonical = arrow_type_to_string(string_to_arrow_type(type_str))
+        return ALIASES.get(canonical, canonical)
+    except ValueError:
+        return lowered
 
 
 class TypeMapper(Protocol):

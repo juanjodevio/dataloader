@@ -127,3 +127,15 @@ def test_validate_freeze_type_mismatch_errors():
     assert not result.ok
     assert any("type mismatch" in issue.message for issue in result.errors)
 
+
+def test_validate_discard_rows_drops_batch():
+    schema = Schema(columns=[Column(name="a", type="int")])
+    table = pa.table({"a": [1], "extra": [2]})
+    contracts = SchemaContracts(columns={"extra": ContractMode.DISCARD_ROWS})
+
+    validator = SchemaValidator(mode=SchemaMode.STRICT, contracts=contracts)
+    result = validator.validate(table, schema)
+
+    assert result.dropped_rows is True
+    assert result.ok  # no errors, rows dropped
+

@@ -7,6 +7,7 @@ from typing import Dict, List, Tuple
 from pydantic import BaseModel, Field
 
 from dataloader.core.schema.models import Column, Schema
+from dataloader.core.type_mapping import normalize_type
 
 
 class SchemaUpdate(BaseModel):
@@ -33,8 +34,8 @@ class SchemaEvolution:
                 update.added_columns.append(col.name)
                 continue
 
-            if existing.type != col.type:
-                variant_name = self._variant_name(col.name, col.type)
+            if normalize_type(existing.type) != normalize_type(col.type):
+                variant_name = self._variant_name(col.name, normalize_type(col.type))
                 if variant_name not in current_map:
                     variant_col = Column(
                         name=variant_name,
