@@ -18,12 +18,18 @@ from dataloader.core.schema import (
     Schema,
     SchemaContracts,
     SchemaEvolution,
+    SchemaLineage,
     SchemaMode,
+    SchemaRegistry,
     SchemaUpdate,
     SchemaValidator,
+    SchemaStorage,
     TypeInferrer,
     ValidationIssue,
     ValidationResult,
+    ColumnLineageEntry,
+    InMemorySchemaStorage,
+    LocalJsonSchemaStorage,
 )
 from dataloader.core.state import State
 from dataloader.core.state_backend import LocalStateBackend, StateBackend
