@@ -1,6 +1,15 @@
 import pyarrow as pa
 
-from dataloader.core.schema import Column, Schema, SchemaEvolution, TypeInferrer
+from dataloader.core.schema import (
+    Column,
+    ContractMode,
+    Schema,
+    SchemaContracts,
+    SchemaEvolution,
+    SchemaMode,
+    SchemaValidator,
+    TypeInferrer,
+)
 
 
 def test_infer_shallow_keeps_top_level_only():
@@ -68,4 +77,53 @@ def test_schema_evolution_adds_new_column():
 
     assert diff.added_columns == ["b"]
     assert any(col.name == "b" for col in updated.columns)
+
+
+def test_validate_strict_extra_column_errors():
+    schema = Schema(columns=[Column(name="a", type="int64")], mode=SchemaMode.STRICT)
+    table = pa.table({"a": [1], "b": [2]})
+
+    validator = SchemaValidator(mode=SchemaMode.STRICT)
+    result = validator.validate(table, schema)
+
+    assert not result.ok
+    assert any("unexpected column 'b'" in issue.message for issue in result.errors)
+    assert "b" not in [c.name for c in result.validated_schema.columns]
+
+
+def test_validate_infer_adds_column_when_evolve():
+    schema = Schema(columns=[Column(name="a", type="int64")], mode=SchemaMode.INFER)
+    table = pa.table({"a": [1], "b": ["x"]})
+
+    validator = SchemaValidator(mode=SchemaMode.INFER)
+    result = validator.validate(table, schema)
+
+    assert result.ok
+    assert any(issue.level == "warning" for issue in result.warnings)
+    assert {"a", "b"} == {c.name for c in result.validated_schema.columns}
+
+
+def test_validate_discard_columns_contract_drops_extra():
+    schema = Schema(columns=[Column(name="a", type="int64")], mode=SchemaMode.STRICT)
+    table = pa.table({"a": [1], "b": [2]})
+    contracts = SchemaContracts(columns={"b": ContractMode.DISCARD_COLUMNS})
+
+    validator = SchemaValidator(mode=SchemaMode.STRICT, contracts=contracts)
+    result = validator.validate(table, schema)
+
+    assert result.ok
+    assert "b" in result.dropped_columns
+    assert not result.errors
+
+
+def test_validate_freeze_type_mismatch_errors():
+    schema = Schema(columns=[Column(name="a", type="int64")])
+    table = pa.table({"a": ["x"]})
+    contracts = SchemaContracts(columns={"a": ContractMode.FREEZE})
+
+    validator = SchemaValidator(mode=SchemaMode.INFER, contracts=contracts)
+    result = validator.validate(table, schema)
+
+    assert not result.ok
+    assert any("type mismatch" in issue.message for issue in result.errors)
 

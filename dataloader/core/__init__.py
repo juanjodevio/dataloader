@@ -12,13 +12,18 @@ from dataloader.core.exceptions import (
 )
 from dataloader.core.schema import (
     Column,
+    ContractMode,
     EvolutionPolicy,
     InferenceResult,
     Schema,
+    SchemaContracts,
     SchemaEvolution,
     SchemaMode,
     SchemaUpdate,
+    SchemaValidator,
     TypeInferrer,
+    ValidationIssue,
+    ValidationResult,
 )
 from dataloader.core.state import State
 from dataloader.core.state_backend import LocalStateBackend, StateBackend
@@ -38,10 +43,15 @@ __all__ = [
     "execute",
     "Schema",
     "Column",
+    "ContractMode",
     "SchemaMode",
     "EvolutionPolicy",
+    "SchemaValidator",
+    "SchemaContracts",
     "TypeInferrer",
     "InferenceResult",
     "SchemaEvolution",
     "SchemaUpdate",
+    "ValidationIssue",
+    "ValidationResult",
 ]
