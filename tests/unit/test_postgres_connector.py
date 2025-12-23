@@ -232,3 +232,209 @@ class TestPostgresConnectorRegistration:
         connector = get_connector("postgres", config)
 
         assert isinstance(connector, PostgresConnector)
+
+
+class TestPostgresConnectorFullRefresh:
+    """Tests for full_refresh functionality in PostgresConnector."""
+
+    @pytest.fixture
+    def destination_config(self) -> DestinationConfig:
+        """Create a Postgres destination config."""
+        return DestinationConfig(
+            type="postgres",
+            host="localhost",
+            port=5432,
+            database="testdb",
+            user="testuser",
+            password="testpass",
+            table="users",
+            db_schema="public",
+            write_mode="overwrite",
+        )
+
+    @pytest.fixture
+    def sample_batch(self) -> ArrowBatch:
+        """Create a sample batch."""
+        return ArrowBatch.from_rows(
+            columns=["id", "name"],
+            rows=[[1, "Alice"], [2, "Bob"]],
+            metadata={},
+        )
+
+    @patch("dataloader.connectors.postgres.connector.PostgresConnector._insert_batch")
+    @patch("dataloader.connectors.postgres.connector.create_engine")
+    @patch("dataloader.connectors.postgres.connector.inspect")
+    def test_full_refresh_overwrite_drops_table(
+        self,
+        mock_inspect: MagicMock,
+        mock_create_engine: MagicMock,
+        mock_insert_batch: MagicMock,
+        destination_config: DestinationConfig,
+        sample_batch: ArrowBatch,
+    ):
+        """Test that full_refresh=True with overwrite mode drops table."""
+        from sqlalchemy import text
+        from sqlalchemy.engine import Engine
+
+        mock_engine = MagicMock(spec=Engine)
+        mock_create_engine.return_value = mock_engine
+        mock_conn = MagicMock()
+        mock_engine.connect.return_value.__enter__ = MagicMock(return_value=mock_conn)
+        mock_engine.connect.return_value.__exit__ = MagicMock(return_value=False)
+
+        mock_inspector = MagicMock()
+        mock_inspect.return_value = mock_inspector
+        mock_inspector.get_columns.return_value = []
+
+        connector = PostgresConnector(destination_config)
+        state = State(metadata={"full_refresh": True})
+
+        connector.write_batch(sample_batch, state)
+
+        # Verify DROP TABLE was called (not TRUNCATE)
+        drop_calls = [
+            call for call in mock_conn.execute.call_args_list
+            if isinstance(call[0][0], text) and "DROP TABLE" in str(call[0][0])
+        ]
+        truncate_calls = [
+            call for call in mock_conn.execute.call_args_list
+            if isinstance(call[0][0], text) and "TRUNCATE" in str(call[0][0])
+        ]
+
+        assert len(drop_calls) > 0, "DROP TABLE should be called with full_refresh=True"
+        assert len(truncate_calls) == 0, "TRUNCATE should not be called with full_refresh=True"
+        mock_insert_batch.assert_called_once()
+
+    @patch("dataloader.connectors.postgres.connector.PostgresConnector._insert_batch")
+    @patch("dataloader.connectors.postgres.connector.create_engine")
+    @patch("dataloader.connectors.postgres.connector.inspect")
+    def test_default_overwrite_truncates_table(
+        self,
+        mock_inspect: MagicMock,
+        mock_create_engine: MagicMock,
+        mock_insert_batch: MagicMock,
+        destination_config: DestinationConfig,
+        sample_batch: ArrowBatch,
+    ):
+        """Test that full_refresh=False with overwrite mode truncates table (not drops)."""
+        from sqlalchemy import text
+        from sqlalchemy.engine import Engine
+
+        mock_engine = MagicMock(spec=Engine)
+        mock_create_engine.return_value = mock_engine
+        mock_conn = MagicMock()
+        mock_engine.connect.return_value.__enter__ = MagicMock(return_value=mock_conn)
+        mock_engine.connect.return_value.__exit__ = MagicMock(return_value=False)
+
+        mock_inspector = MagicMock()
+        mock_inspect.return_value = mock_inspector
+        # Table exists, so truncate should work
+        mock_inspector.get_columns.return_value = [{"name": "id"}, {"name": "name"}]
+
+        connector = PostgresConnector(destination_config)
+        state = State(metadata={"full_refresh": False})
+
+        connector.write_batch(sample_batch, state)
+
+        # Verify TRUNCATE was called (not DROP)
+        truncate_calls = [
+            call for call in mock_conn.execute.call_args_list
+            if isinstance(call[0][0], text) and "TRUNCATE" in str(call[0][0])
+        ]
+        drop_calls = [
+            call for call in mock_conn.execute.call_args_list
+            if isinstance(call[0][0], text) and "DROP TABLE" in str(call[0][0])
+        ]
+
+        assert len(truncate_calls) > 0, "TRUNCATE should be called with full_refresh=False"
+        assert len(drop_calls) == 0, "DROP TABLE should not be called with full_refresh=False"
+        mock_insert_batch.assert_called_once()
+
+    @patch("dataloader.connectors.postgres.connector.PostgresConnector._insert_batch")
+    @patch("dataloader.connectors.postgres.connector.create_engine")
+    @patch("dataloader.connectors.postgres.connector.inspect")
+    def test_full_refresh_append_drops_table(
+        self,
+        mock_inspect: MagicMock,
+        mock_create_engine: MagicMock,
+        mock_insert_batch: MagicMock,
+        destination_config: DestinationConfig,
+        sample_batch: ArrowBatch,
+    ):
+        """Test that full_refresh=True with append mode drops and recreates table."""
+        from sqlalchemy import text
+        from sqlalchemy.engine import Engine
+
+        destination_config.write_mode = "append"
+
+        mock_engine = MagicMock(spec=Engine)
+        mock_create_engine.return_value = mock_engine
+        mock_conn = MagicMock()
+        mock_engine.connect.return_value.__enter__ = MagicMock(return_value=mock_conn)
+        mock_engine.connect.return_value.__exit__ = MagicMock(return_value=False)
+
+        mock_inspector = MagicMock()
+        mock_inspect.return_value = mock_inspector
+        mock_inspector.get_columns.return_value = []
+
+        connector = PostgresConnector(destination_config)
+        state = State(metadata={"full_refresh": True})
+
+        connector.write_batch(sample_batch, state)
+
+        # Verify DROP TABLE was called
+        drop_calls = [
+            call for call in mock_conn.execute.call_args_list
+            if isinstance(call[0][0], text) and "DROP TABLE" in str(call[0][0])
+        ]
+
+        assert len(drop_calls) > 0, "DROP TABLE should be called with full_refresh=True and append mode"
+        mock_insert_batch.assert_called_once()
+
+    @patch("dataloader.connectors.postgres.connector.PostgresConnector._insert_batch")
+    @patch("dataloader.connectors.postgres.connector.create_engine")
+    @patch("dataloader.connectors.postgres.connector.inspect")
+    def test_full_refresh_only_drops_once_with_multiple_batches(
+        self,
+        mock_inspect: MagicMock,
+        mock_create_engine: MagicMock,
+        mock_insert_batch: MagicMock,
+        destination_config: DestinationConfig,
+        sample_batch: ArrowBatch,
+    ):
+        """Test that full_refresh only drops table on first batch, not subsequent batches."""
+        from sqlalchemy import text
+        from sqlalchemy.engine import Engine
+
+        mock_engine = MagicMock(spec=Engine)
+        mock_create_engine.return_value = mock_engine
+        mock_conn = MagicMock()
+        mock_engine.connect.return_value.__enter__ = MagicMock(return_value=mock_conn)
+        mock_engine.connect.return_value.__exit__ = MagicMock(return_value=False)
+
+        mock_inspector = MagicMock()
+        mock_inspect.return_value = mock_inspector
+        mock_inspector.get_columns.return_value = []
+
+        connector = PostgresConnector(destination_config)
+        state = State(metadata={"full_refresh": True})
+
+        batch2 = ArrowBatch.from_rows(
+            columns=["id", "name"],
+            rows=[[3, "Charlie"]],
+            metadata={},
+        )
+
+        # Write first batch
+        connector.write_batch(sample_batch, state)
+        # Write second batch
+        connector.write_batch(batch2, state)
+
+        # Verify DROP TABLE was called exactly once (only on first batch)
+        drop_calls = [
+            call for call in mock_conn.execute.call_args_list
+            if isinstance(call[0][0], text) and "DROP TABLE" in str(call[0][0])
+        ]
+
+        assert len(drop_calls) == 1, "DROP TABLE should only be called once, not on every batch"
+        assert mock_insert_batch.call_count == 2, "Insert should be called for each batch"

@@ -287,19 +287,45 @@ class DuckDBConnector:
                         context={"table": self._table, "column": col_name},
                     ) from e
 
-    def _handle_write_mode(self, conn: DuckDBPyConnection, batch: ArrowBatch) -> None:
-        """Handle write mode logic before inserting."""
+    def _handle_write_mode(self, conn: DuckDBPyConnection, batch: ArrowBatch, full_refresh: bool = False) -> None:
+        """Handle write mode logic before inserting.
+        
+        Args:
+            conn: Database connection
+            batch: Batch to write
+            full_refresh: If True, use destructive DROP operations. If False, use DELETE/TRUNCATE for overwrite.
+        """
         if self._write_mode == "overwrite" and not self._table_created:
-            # Drop and recreate table
-            try:
-                conn.execute(f"DROP TABLE IF EXISTS {self._qualified_table}")
-            except duckdb.Error as e:
-                raise ConnectorError(
-                    f"Failed to drop table for overwrite: {e}",
-                    context={"table": self._table},
-                ) from e
-            self._create_table(conn, batch)
-            self._table_created = True
+            if full_refresh:
+                # Full refresh: drop and recreate table (destructive)
+                try:
+                    conn.execute(f"DROP TABLE IF EXISTS {self._qualified_table}")
+                except duckdb.Error as e:
+                    raise ConnectorError(
+                        f"Failed to drop table for full refresh: {e}",
+                        context={"table": self._table},
+                    ) from e
+                # Always create after drop in full_refresh mode
+                self._create_table(conn, batch)
+                self._table_created = True
+            else:
+                # Default overwrite: delete all rows (preserves structure)
+                try:
+                    existing = self._get_existing_columns(conn)
+                    if existing:
+                        conn.execute(f"DELETE FROM {self._qualified_table}")
+                    self._table_created = True
+                except duckdb.Error as e:
+                    # If table doesn't exist, create it
+                    existing = self._get_existing_columns(conn)
+                    if not existing:
+                        self._create_table(conn, batch)
+                        self._table_created = True
+                    else:
+                        raise ConnectorError(
+                            f"Failed to delete from table for overwrite: {e}",
+                            context={"table": self._table},
+                        ) from e
 
         elif self._write_mode == "merge":
             # Merge not supported in v0.1
@@ -309,12 +335,23 @@ class DuckDBConnector:
             )
 
         elif self._write_mode == "append":
-            # Ensure table exists and handle schema evolution
-            existing = self._get_existing_columns(conn)
-            if not existing:
+            if full_refresh and not self._table_created:
+                # Full refresh with append: drop and recreate (destructive)
+                try:
+                    conn.execute(f"DROP TABLE IF EXISTS {self._qualified_table}")
+                except duckdb.Error as e:
+                    raise ConnectorError(
+                        f"Failed to drop table for full refresh: {e}",
+                        context={"table": self._table},
+                    ) from e
                 self._create_table(conn, batch)
             else:
-                self._add_missing_columns(conn, batch)
+                # Default append: ensure table exists and handle schema evolution
+                existing = self._get_existing_columns(conn)
+                if not existing:
+                    self._create_table(conn, batch)
+                else:
+                    self._add_missing_columns(conn, batch)
             self._table_created = True
 
     def _insert_batch(self, conn: DuckDBPyConnection, batch: ArrowBatch) -> None:
@@ -351,15 +388,20 @@ class DuckDBConnector:
 
         Args:
             batch: Batch of data to write.
-            state: Current pipeline state (unused for DuckDB but kept for protocol).
+            state: Current pipeline state. Reads full_refresh flag from state.metadata.
 
         Raises:
             NotImplementedError: If writing is not supported (should not happen for DuckDB).
             ConnectorError: If connection, table creation, or insert fails.
+                Also raises if full_refresh is requested but not supported (currently supported).
         """
+        full_refresh = state.metadata.get("full_refresh", False)
+        # DuckDB supports full_refresh (DROP TABLE operations)
+        # If full_refresh were not supported, raise ConnectorError here with a clear message
+        
         conn = self._get_connection()
 
-        self._handle_write_mode(conn, batch)
+        self._handle_write_mode(conn, batch, full_refresh=full_refresh)
         self._insert_batch(conn, batch)
 
 

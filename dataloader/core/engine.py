@@ -83,6 +83,11 @@ def _execute_sequential(
         state_dict = state_backend.load(recipe.name)
         state = State.from_dict(state_dict)
 
+        # Store full_refresh flag in state metadata for connectors to access
+        state = state.update(
+            metadata={**state.metadata, "full_refresh": recipe.runtime.full_refresh}
+        )
+
         logger.debug(
             f"Loaded state: {state.to_dict()}", extra={"recipe_name": recipe.name}
         )
@@ -188,6 +193,11 @@ async def _execute_async(
             )
 
         state = State.from_dict(state_dict)
+
+        # Store full_refresh flag in state metadata for connectors to access
+        state = state.update(
+            metadata={**state.metadata, "full_refresh": recipe.runtime.full_refresh}
+        )
 
         logger.debug(
             f"Loaded state: {state.to_dict()}",

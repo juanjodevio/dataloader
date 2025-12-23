@@ -43,6 +43,11 @@ from dataloader.core.state_backend import LocalStateBackend, create_state_backen
     is_flag=True,
     help="Use JSON format for logs",
 )
+@click.option(
+    "--full-refresh",
+    is_flag=True,
+    help="Enable full refresh (destructive operation: drops/recreates tables or deletes paths)",
+)
 def run(
     recipe_path: str,
     state_dir: str,
@@ -50,6 +55,7 @@ def run(
     vars: tuple,
     log_level: str,
     json_logs: bool,
+    full_refresh: bool,
 ):
     """Run a recipe to load data from source to destination.
 
@@ -60,6 +66,7 @@ def run(
         dataloader run recipe.yaml --state-backend s3://my-bucket/state
         dataloader run recipe.yaml --vars table=customers --vars env=prod
         dataloader run recipe.yaml --log-level DEBUG --json-logs
+        dataloader run recipe.yaml --full-refresh
     """
     # Configure logging
     configure_logging(level=log_level, json_format=json_logs)
@@ -80,6 +87,10 @@ def run(
         from dataloader.models.loader import load_recipe
 
         recipe = load_recipe(recipe_path, cli_vars=cli_vars if cli_vars else None)
+
+        # Override runtime config with CLI flags
+        if full_refresh:
+            recipe.runtime.full_refresh = True
 
         # Create state backend
         if state_backend:

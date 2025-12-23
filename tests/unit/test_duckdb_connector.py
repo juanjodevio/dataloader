@@ -293,6 +293,132 @@ class TestDuckDBConnector:
         assert isinstance(connector, DuckDBConnector)
         connector.close()
 
+    def test_duckdb_full_refresh_overwrite_drops_table(
+        self, duckdb_config: DestinationConfig, sample_batch: ArrowBatch
+    ):
+        """Test that full_refresh=True with overwrite mode drops and recreates table."""
+        duckdb_config.write_mode = "overwrite"
+        connector = DuckDBConnector(duckdb_config)
+        state = State(metadata={"full_refresh": True})
+
+        # Write first batch - should drop and create
+        connector.write_batch(sample_batch, state)
+
+        conn = connector._get_connection()
+        result = conn.execute("SELECT * FROM test_table ORDER BY id").fetchall()
+
+        assert len(result) == 3
+        assert result[0] == (1, "Alice", 95.5)
+
+        # Write second batch - should NOT drop again (only inserts)
+        batch2 = ArrowBatch.from_rows(
+            columns=["id", "name", "score"],
+            rows=[[4, "David", 88.0]],
+            metadata={},
+        )
+        connector.write_batch(batch2, state)
+
+        result = conn.execute("SELECT * FROM test_table ORDER BY id").fetchall()
+        # Should have all 4 rows (3 from first batch + 1 from second)
+        assert len(result) == 4
+        assert result[3] == (4, "David", 88.0)
+
+        connector.close()
+
+    def test_duckdb_default_overwrite_deletes_rows(
+        self, duckdb_config: DestinationConfig, sample_batch: ArrowBatch
+    ):
+        """Test that full_refresh=False with overwrite mode deletes rows (not drops table)."""
+        duckdb_config.write_mode = "overwrite"
+        connector = DuckDBConnector(duckdb_config)
+        state = State(metadata={"full_refresh": False})
+
+        # Write first batch - creates table and inserts
+        connector.write_batch(sample_batch, state)
+
+        conn = connector._get_connection()
+        result = conn.execute("SELECT COUNT(*) FROM test_table").fetchone()
+        assert result[0] == 3
+
+        # Verify table structure exists
+        describe_result = conn.execute("DESCRIBE test_table").fetchall()
+        columns = [row[0] for row in describe_result]
+        assert "id" in columns
+        assert "name" in columns
+        assert "score" in columns
+
+        # Recreate connector to simulate new run with overwrite
+        connector2 = DuckDBConnector(duckdb_config)
+        connector2._conn = connector._conn  # Share connection for in-memory db
+        state2 = State(metadata={"full_refresh": False})
+
+        batch2 = ArrowBatch.from_rows(
+            columns=["id", "name", "score"],
+            rows=[[5, "Eve", 90.0]],
+            metadata={},
+        )
+        # Should DELETE existing rows and insert new ones
+        connector2.write_batch(batch2, state2)
+
+        result = conn.execute("SELECT * FROM test_table").fetchall()
+        # Should only have the new row
+        assert len(result) == 1
+        assert result[0] == (5, "Eve", 90.0)
+
+        # Table structure should still exist
+        describe_result2 = conn.execute("DESCRIBE test_table").fetchall()
+        columns2 = [row[0] for row in describe_result2]
+        assert columns == columns2  # Structure preserved
+
+        connector.close()
+
+    def test_duckdb_full_refresh_append_drops_table(
+        self, duckdb_config: DestinationConfig, sample_batch: ArrowBatch
+    ):
+        """Test that full_refresh=True with append mode drops and recreates table."""
+        duckdb_config.write_mode = "append"
+        connector = DuckDBConnector(duckdb_config)
+        state = State(metadata={"full_refresh": True})
+
+        connector.write_batch(sample_batch, state)
+
+        conn = connector._get_connection()
+        result = conn.execute("SELECT * FROM test_table ORDER BY id").fetchall()
+
+        assert len(result) == 3
+        assert result[0] == (1, "Alice", 95.5)
+
+        connector.close()
+
+    def test_duckdb_full_refresh_only_drops_once(
+        self, duckdb_config: DestinationConfig, sample_batch: ArrowBatch
+    ):
+        """Test that full_refresh only drops table on first batch, not subsequent batches."""
+        duckdb_config.write_mode = "overwrite"
+        connector = DuckDBConnector(duckdb_config)
+        state = State(metadata={"full_refresh": True})
+
+        # Write first batch
+        connector.write_batch(sample_batch, state)
+
+        conn = connector._get_connection()
+        result = conn.execute("SELECT COUNT(*) FROM test_table").fetchone()
+        assert result[0] == 3
+
+        # Write second batch - should NOT drop again
+        batch2 = ArrowBatch.from_rows(
+            columns=["id", "name", "score"],
+            rows=[[4, "David", 88.0], [5, "Eve", 90.0]],
+            metadata={},
+        )
+        connector.write_batch(batch2, state)
+
+        # Should have all rows (3 from first + 2 from second = 5 total)
+        result = conn.execute("SELECT COUNT(*) FROM test_table").fetchone()
+        assert result[0] == 5
+
+        connector.close()
+
 
 class TestDuckDBConnectorRegistration:
     """Tests for DuckDBConnector registration."""

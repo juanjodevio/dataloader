@@ -13,6 +13,7 @@ class TestRuntimeConfig:
         """Test default values."""
         config = RuntimeConfig()
         assert config.batch_size == 10000
+        assert config.full_refresh is False
 
     def test_custom_batch_size(self):
         """Test custom batch size."""
@@ -30,3 +31,29 @@ class TestRuntimeConfig:
         """Test that batch_size cannot be negative."""
         with pytest.raises(ValidationError):
             RuntimeConfig(batch_size=-1)
+
+    def test_default_full_refresh(self):
+        """Test that full_refresh defaults to False."""
+        config = RuntimeConfig()
+        assert config.full_refresh is False
+
+    def test_full_refresh_true(self):
+        """Test setting full_refresh to True."""
+        config = RuntimeConfig(full_refresh=True)
+        assert config.full_refresh is True
+
+    def test_full_refresh_false(self):
+        """Test setting full_refresh to False."""
+        config = RuntimeConfig(full_refresh=False)
+        assert config.full_refresh is False
+
+    def test_runtime_config_with_all_fields(self):
+        """Test RuntimeConfig with all fields set."""
+        config = RuntimeConfig(
+            batch_size=5000,
+            parallelism=4,
+            full_refresh=True,
+        )
+        assert config.batch_size == 5000
+        assert config.parallelism == 4
+        assert config.full_refresh is True

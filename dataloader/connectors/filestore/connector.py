@@ -460,21 +460,31 @@ class FileStoreConnector:
 
         return f"data_{timestamp}_{self._batch_counter:04d}{ext}"
 
-    def _delete_existing_files(self) -> None:
-        """Delete existing files at the destination path (for overwrite mode)."""
-        fs = self._get_filesystem()
-
-        # Build the directory URL for listing files
+    def _get_base_path_url(self) -> str:
+        """Get the base path URL for the configured backend."""
         # For S3FileStoreConfig, construct from bucket + path
         if isinstance(self._config, S3FileStoreConfig):
             bucket = self._config.bucket
             path_prefix = self._path.rstrip("/") if self._path else ""
             if path_prefix:
-                file_url = f"s3://{bucket}/{path_prefix}/"
+                return f"s3://{bucket}/{path_prefix}/"
             else:
-                file_url = f"s3://{bucket}/"
+                return f"s3://{bucket}/"
         else:
-            file_url = self._build_file_url(self._path)
+            # For other backends, use the configured path
+            if self._path.startswith(("s3://", "gs://", "az://", "abfss://", "file://")):
+                return self._path.rstrip("/") + "/"
+            else:
+                # Local filesystem - ensure it's a directory path
+                return str(Path(self._path).resolve())
+
+    def _delete_existing_files(self) -> None:
+        """Delete existing files at the destination path (for overwrite mode).
+        
+        Only deletes files matching the configured format extensions.
+        """
+        fs = self._get_filesystem()
+        file_url = self._get_base_path_url()
 
         try:
             if fs.isdir(file_url):
@@ -495,26 +505,63 @@ class FileStoreConnector:
                 context={"path": file_url, "backend": self._backend},
             ) from e
 
+    def _delete_entire_path(self) -> None:
+        """Delete entire prefix/path (for full refresh mode).
+        
+        Destructively removes all files and subdirectories at the path.
+        """
+        fs = self._get_filesystem()
+        path_url = self._get_base_path_url()
+
+        try:
+            if fs.isdir(path_url):
+                # Delete entire directory recursively
+                fs.rm(path_url, recursive=True)
+            elif fs.exists(path_url):
+                # Single file or path, delete it
+                fs.rm(path_url, recursive=True)
+        except Exception as e:
+            raise ConnectorError(
+                f"Failed to delete entire path for full refresh: {e}",
+                context={"path": path_url, "backend": self._backend},
+            ) from e
+
     def write_batch(self, batch: Batch, state: State) -> None:
         """Write a batch to FileStore using the configured format handler.
 
         Args:
             batch: Batch of data to write.
-            state: Current pipeline state.
+            state: Current pipeline state. Reads full_refresh flag from state.metadata.
 
         Raises:
             NotImplementedError: If writing is not supported (should not happen for FileStore).
             ConnectorError: If file operations fail.
         """
+        full_refresh = state.metadata.get("full_refresh", False)
+        
+        # FileStore supports full_refresh (recursive path deletion via fsspec)
+        # If full_refresh were not supported for a specific backend, raise ConnectorError here:
+        # if full_refresh:
+        #     raise ConnectorError(
+        #         f"Full refresh is not supported for {self._backend} backend. "
+        #         "The backend does not support recursive path deletion.",
+        #         context={"backend": self._backend, "path": self._path},
+        #     )
+        
         if self._write_mode == "merge":
             raise ConnectorError(
                 "Merge write mode is not supported for FileStore in v0.1. Use 'append' or 'overwrite'.",
                 context={"path": self._path, "write_mode": self._write_mode},
             )
 
-        # Handle overwrite on first batch
-        if self._write_mode == "overwrite" and self._batch_counter == 0:
-            self._delete_existing_files()
+        # Handle overwrite/full refresh on first batch
+        if self._batch_counter == 0:
+            if full_refresh:
+                # Full refresh: delete entire prefix/path (destructive)
+                self._delete_entire_path()
+            elif self._write_mode == "overwrite":
+                # Default overwrite: delete matching files only
+                self._delete_existing_files()
 
         if not batch.rows:
             return

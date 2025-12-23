@@ -140,6 +140,94 @@ class TestFileStoreLocalConnector:
         # Existing file should be deleted
         assert not existing_file.exists()
 
+    def test_filestore_full_refresh_deletes_entire_path(
+        self, local_config: LocalFileStoreConfig
+    ):
+        """Test that full_refresh=True deletes entire path, not just matching files."""
+        test_dir = Path(local_config.path)
+
+        # Create multiple files including non-CSV files
+        existing_csv = test_dir / "data.csv"
+        existing_txt = test_dir / "readme.txt"
+        existing_json = test_dir / "metadata.json"
+        subdir = test_dir / "subdir"
+        subdir.mkdir()
+        subdir_file = subdir / "nested.txt"
+
+        existing_csv.write_text("id,name\n1,Old")
+        existing_txt.write_text("README content")
+        existing_json.write_text('{"key": "value"}')
+        subdir_file.write_text("nested content")
+
+        local_config.write_mode = "overwrite"
+        connector = FileStoreConnector(local_config)
+        state = State(metadata={"full_refresh": True})
+
+        batch = ArrowBatch.from_rows(
+            columns=["id", "name"],
+            rows=[[2, "New"]],
+            metadata={},
+        )
+        connector.write_batch(batch, state)
+
+        # All files and subdirectories should be deleted
+        assert not existing_csv.exists()
+        assert not existing_txt.exists()
+        assert not existing_json.exists()
+        assert not subdir.exists()
+
+    def test_filestore_default_overwrite_only_deletes_matching_files(
+        self, local_config: LocalFileStoreConfig
+    ):
+        """Test that full_refresh=False with overwrite only deletes matching format files."""
+        test_dir = Path(local_config.path)
+
+        # Create CSV file and non-CSV file
+        existing_csv = test_dir / "data.csv"
+        existing_txt = test_dir / "readme.txt"
+
+        existing_csv.write_text("id,name\n1,Old")
+        existing_txt.write_text("README content")
+
+        local_config.write_mode = "overwrite"
+        connector = FileStoreConnector(local_config)
+        state = State(metadata={"full_refresh": False})
+
+        batch = ArrowBatch.from_rows(
+            columns=["id", "name"],
+            rows=[[2, "New"]],
+            metadata={},
+        )
+        connector.write_batch(batch, state)
+
+        # CSV file should be deleted, but txt file should remain
+        assert not existing_csv.exists()
+        assert existing_txt.exists()
+
+    def test_filestore_full_refresh_works_with_append_mode(
+        self, local_config: LocalFileStoreConfig
+    ):
+        """Test that full_refresh=True works even with append write_mode."""
+        test_dir = Path(local_config.path)
+
+        # Create existing files
+        existing_file = test_dir / "old_data.csv"
+        existing_file.write_text("id,name\n1,Old")
+
+        local_config.write_mode = "append"
+        connector = FileStoreConnector(local_config)
+        state = State(metadata={"full_refresh": True})
+
+        batch = ArrowBatch.from_rows(
+            columns=["id", "name"],
+            rows=[[2, "New"]],
+            metadata={},
+        )
+        connector.write_batch(batch, state)
+
+        # Existing file should be deleted despite append mode
+        assert not existing_file.exists()
+
     def test_filestore_write_json(
         self, local_config: LocalFileStoreConfig, sample_batch: ArrowBatch
     ):

@@ -12,6 +12,10 @@ class RuntimeConfig(BaseModel):
         description="Number of parallel workers for batch processing (1 = sequential)",
         ge=1,
     )
+    full_refresh: bool = Field(
+        default=False,
+        description="Enable full refresh (destructive: drops/recreates tables or deletes paths). Use with caution as this will delete existing data and structures.",
+    )
 
     @field_validator("batch_size")
     @classmethod
