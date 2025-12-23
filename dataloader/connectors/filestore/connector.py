@@ -146,8 +146,10 @@ class FileStoreConnector:
             )
 
             if access_key and secret_key:
+                # Handle SecretStr if present
+                secret_key_str = secret_key.get_secret_value() if hasattr(secret_key, "get_secret_value") else secret_key
                 storage_options["key"] = access_key
-                storage_options["secret"] = secret_key
+                storage_options["secret"] = secret_key_str
 
             if region:
                 storage_options["client_kwargs"] = {"region_name": region}

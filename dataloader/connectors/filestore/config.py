@@ -7,7 +7,7 @@ using fsspec for abstraction.
 
 from typing import Literal, Optional, Union
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, SecretStr, model_validator
 
 from dataloader.models.source_config import IncrementalConfig
 
@@ -52,7 +52,7 @@ class S3FileStoreConfig(FileStoreConnectorConfig):
     access_key: Optional[str] = Field(
         default=None, description="AWS access key (supports templates)"
     )
-    secret_key: Optional[str] = Field(
+    secret_key: Optional[SecretStr] = Field(
         default=None, description="AWS secret key (supports templates)"
     )
 

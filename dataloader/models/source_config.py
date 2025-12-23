@@ -2,7 +2,7 @@
 
 from typing import Literal, Optional
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, SecretStr, model_validator
 
 
 class IncrementalConfig(BaseModel):
@@ -34,7 +34,7 @@ class SourceConfig(BaseModel):
     user: Optional[str] = Field(
         default=None, description="Database user (supports templates)"
     )
-    password: Optional[str] = Field(
+    password: Optional[SecretStr] = Field(
         default=None, description="Database password (supports templates)"
     )
     db_schema: Optional[str] = Field(default=None, description="Database schema")
@@ -59,8 +59,64 @@ class SourceConfig(BaseModel):
     access_key: Optional[str] = Field(
         default=None, description="AWS access key (supports templates)"
     )
-    secret_key: Optional[str] = Field(
+    secret_key: Optional[SecretStr] = Field(
         default=None, description="AWS secret key (supports templates)"
+    )
+
+    # API connector fields
+    base_url: Optional[str] = Field(
+        default=None, description="Base URL of the API (supports templates, required for API connector)"
+    )
+    endpoint: Optional[str] = Field(
+        default=None, description="Relative endpoint path (e.g., '/api/search', required for API connector)"
+    )
+    params: Optional[dict] = Field(
+        default=None, description="Query string parameters (supports templates)"
+    )
+    headers: Optional[dict[str, str]] = Field(
+        default=None, description="HTTP headers (supports templates)"
+    )
+    auth_type: Optional[Literal["none", "bearer", "basic"]] = Field(
+        default=None, description="Authentication type"
+    )
+    auth_token: Optional[SecretStr] = Field(
+        default=None, description="Token for bearer auth (supports templates)"
+    )
+    auth_username: Optional[str] = Field(
+        default=None, description="Username for basic auth (supports templates)"
+    )
+    auth_password: Optional[SecretStr] = Field(
+        default=None, description="Password for basic auth (supports templates)"
+    )
+    pagination_type: Optional[Literal["page", "offset", "cursor"]] = Field(
+        default=None, description="Pagination strategy"
+    )
+    page_param: Optional[str] = Field(
+        default=None, description="Name of the page parameter"
+    )
+    limit_param: Optional[str] = Field(
+        default=None, description="Name of the limit parameter"
+    )
+    page_size: Optional[int] = Field(
+        default=None, description="Default page size"
+    )
+    data_path: Optional[str] = Field(
+        default=None, description="JSONPath to extract data array (e.g., 'data', 'results.items')"
+    )
+    total_path: Optional[str] = Field(
+        default=None, description="JSONPath to extract total count (e.g., 'total', 'pagination.total')"
+    )
+    timeout: Optional[int] = Field(
+        default=None, description="Request timeout in seconds"
+    )
+    max_retries: Optional[int] = Field(
+        default=None, description="Maximum number of retries"
+    )
+    retry_delay: Optional[float] = Field(
+        default=None, description="Initial delay between retries in seconds"
+    )
+    backoff_rate: Optional[float] = Field(
+        default=None, description="Exponential backoff multiplier for retry_delay"
     )
 
     incremental: Optional[IncrementalConfig] = Field(
@@ -86,6 +142,11 @@ class SourceConfig(BaseModel):
                 raise ValueError("Source type 'filestore' requires 'filepath' field")
             if not self.format:
                 raise ValueError("Source type 'filestore' requires 'format' field")
+        elif self.type == "api":
+            if not self.base_url:
+                raise ValueError("Source type 'api' requires 'base_url' field")
+            if not self.endpoint:
+                raise ValueError("Source type 'api' requires 'endpoint' field")
         return self
 
     def _infer_backend(self) -> str:

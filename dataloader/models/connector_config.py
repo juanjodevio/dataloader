@@ -8,6 +8,7 @@ implementation for better cohesion and maintainability.
 from typing import TYPE_CHECKING, Protocol, Union
 
 if TYPE_CHECKING:
+    from dataloader.connectors.api.config import ApiConnectorConfig
     from dataloader.connectors.duckdb.config import DuckDBConnectorConfig
     from dataloader.connectors.filestore.config import (
         FileStoreConfigType,
@@ -31,6 +32,7 @@ class ConnectorConfig(Protocol):
 
 # Import connector-specific configs from their respective modules
 # These imports are safe because config modules don't import connectors
+from dataloader.connectors.api.config import ApiConnectorConfig
 from dataloader.connectors.duckdb.config import DuckDBConnectorConfig
 from dataloader.connectors.filestore.config import (
     FileStoreConfigType,
@@ -42,6 +44,7 @@ from dataloader.connectors.postgres.config import PostgresConnectorConfig
 # Union type for all connector configs
 # This is used by the registry and recipe loading
 ConnectorConfigType = Union[
+    ApiConnectorConfig,
     PostgresConnectorConfig,
     DuckDBConnectorConfig,
     FileStoreConfigType,  # Includes S3FileStoreConfig, LocalFileStoreConfig
@@ -55,6 +58,7 @@ __all__ = [
     "ConnectorConfig",
     "ConnectorConfigType",
     "ConnectorConfigUnion",
+    "ApiConnectorConfig",
     "PostgresConnectorConfig",
     "DuckDBConnectorConfig",
     "FileStoreConfigType",

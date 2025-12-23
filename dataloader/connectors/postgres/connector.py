@@ -70,7 +70,7 @@ class PostgresConnector:
             self._port = config.port or self.DEFAULT_PORT
             self._database = config.database
             self._user = config.user
-            self._password = config.password
+            self._password = config.password.get_secret_value() if config.password else None
             self._db_schema = config.db_schema or "public"
             self._table = config.table
             self._write_mode = config.write_mode
@@ -80,7 +80,7 @@ class PostgresConnector:
             self._port = config.port or self.DEFAULT_PORT
             self._database = config.database or ""
             self._user = config.user or ""
-            self._password = config.password
+            self._password = config.password.get_secret_value() if config.password else None.get_secret_value() if config.password else None
             self._db_schema = config.db_schema or "public"
             self._table = config.table or ""
             self._write_mode = "append"  # Default for source configs
@@ -90,7 +90,7 @@ class PostgresConnector:
             self._port = config.port or self.DEFAULT_PORT
             self._database = config.database or ""
             self._user = config.user or ""
-            self._password = config.password
+            self._password = config.password.get_secret_value() if config.password else None.get_secret_value() if config.password else None
             self._db_schema = config.db_schema or "public"
             self._table = config.table or ""
             self._write_mode = config.write_mode

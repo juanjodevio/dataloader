@@ -2,7 +2,7 @@
 
 from typing import List, Literal, Optional
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, SecretStr, model_validator
 
 
 class DestinationConfig(BaseModel):
@@ -23,7 +23,7 @@ class DestinationConfig(BaseModel):
     user: Optional[str] = Field(
         default=None, description="Database user (supports templates)"
     )
-    password: Optional[str] = Field(
+    password: Optional[SecretStr] = Field(
         default=None, description="Database password (supports templates)"
     )
     db_schema: Optional[str] = Field(default=None, description="Database schema")
@@ -48,7 +48,7 @@ class DestinationConfig(BaseModel):
     access_key: Optional[str] = Field(
         default=None, description="AWS access key (supports templates)"
     )
-    secret_key: Optional[str] = Field(
+    secret_key: Optional[SecretStr] = Field(
         default=None, description="AWS secret key (supports templates)"
     )
 

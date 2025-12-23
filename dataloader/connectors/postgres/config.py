@@ -2,7 +2,7 @@
 
 from typing import Literal, Optional
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, SecretStr, model_validator
 
 from dataloader.models.source_config import IncrementalConfig
 
@@ -20,7 +20,7 @@ class PostgresConnectorConfig(BaseModel):
     port: Optional[int] = Field(default=5432, description="Database port")
     database: str = Field(description="Database name (supports templates)")
     user: str = Field(description="Database user (supports templates)")
-    password: Optional[str] = Field(
+    password: Optional[SecretStr] = Field(
         default=None, description="Database password (supports templates)"
     )
     db_schema: Optional[str] = Field(default="public", description="Database schema")

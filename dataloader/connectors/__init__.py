@@ -11,6 +11,10 @@ from dataloader.connectors.base import Connector
 # Unified connectors (register themselves via @register_connector decorator on import)
 # CSV connector removed - use FileStore connector with format="csv" instead
 # from dataloader.connectors.csv.connector import CSVConnector, create_csv_connector
+from dataloader.connectors.api.connector import (
+    ApiConnector,
+    create_api_connector,
+)
 from dataloader.connectors.duckdb.connector import (
     DuckDBConnector,
     create_duckdb_connector,
@@ -47,6 +51,8 @@ def reregister_builtins() -> None:
     # CSV connector removed - use FileStore connector with format="csv" instead
     # if "csv" not in current_connectors:
     #     register_connector("csv", create_csv_connector)
+    if "api" not in current_connectors:
+        register_connector("api", create_api_connector)
     if "duckdb" not in current_connectors:
         register_connector("duckdb", create_duckdb_connector)
     if "filestore" not in current_connectors:
@@ -71,12 +77,14 @@ __all__ = [
     "clear_registries",
     # Unified connector implementations
     # "CSVConnector",  # Removed - use FileStore connector with format="csv" instead
+    "ApiConnector",
     "DuckDBConnector",
     "FileStoreConnector",
     "PostgresConnector",
     # "S3Connector",  # Removed - use FileStore connector with backend="s3" instead
     # Unified connector factory functions
     # "create_csv_connector",  # Removed - use FileStore connector with format="csv" instead
+    "create_api_connector",
     "create_duckdb_connector",
     "create_filestore_connector",
     "create_postgres_connector",
