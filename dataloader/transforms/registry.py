@@ -1,16 +1,13 @@
-"""Transform registry for managing transform factories.
+"""Transform registry for managing transform factories."""
 
-Provides a registry pattern for transform implementations,
-allowing dynamic registration and retrieval of transform factories.
-"""
-
-from typing import Any, Callable, Protocol, overload
+from typing import Any, Callable, Protocol, overload, runtime_checkable
 
 from dataloader.core.batch import Batch
 from dataloader.core.exceptions import TransformError
 
 
-class Transform(Protocol):
+@runtime_checkable
+class BaseTransform(Protocol):
     """Protocol for class-based transforms."""
 
     def apply(self, batch: Batch) -> Batch:
@@ -18,13 +15,10 @@ class Transform(Protocol):
         ...
 
 
-# Type alias for function-based transforms
+Transform = BaseTransform
 TransformFunc = Callable[[Batch, dict[str, Any]], Batch]
-
-# Type alias for transform factory
 TransformFactory = Callable[[dict[str, Any]], Transform | TransformFunc]
 
-# Global registry
 _transform_registry: dict[str, TransformFactory] = {}
 
 

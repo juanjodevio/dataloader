@@ -16,6 +16,7 @@ from dataloader.transforms.pipeline import TransformPipeline
 
 # Registry must be imported first (other modules use register_transform decorator)
 from dataloader.transforms.registry import (
+    BaseTransform,
     Transform,
     TransformFactory,
     TransformFunc,
@@ -37,6 +38,7 @@ __all__ = [
     "get_transform",
     "list_transform_types",
     "clear_registry",
+    "BaseTransform",
     "Transform",
     "TransformFunc",
     "TransformFactory",

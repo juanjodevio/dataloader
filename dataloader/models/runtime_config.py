@@ -16,6 +16,10 @@ class RuntimeConfig(BaseModel):
         default=False,
         description="Enable full refresh (destructive: drops/recreates tables or deletes paths). Use with caution as this will delete existing data and structures.",
     )
+    custom_transforms: list[str] = Field(
+        default_factory=list,
+        description="List of module paths to import for custom transforms.",
+    )
 
     @field_validator("batch_size")
     @classmethod

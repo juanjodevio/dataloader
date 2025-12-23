@@ -10,6 +10,7 @@ from dataloader.core.exceptions import RecipeError
 from dataloader.models.merger import apply_delete_semantics, merge_recipes
 from dataloader.models.recipe import Recipe
 from dataloader.models.templates import render_templates
+from dataloader.transforms.loader import load_custom_transforms
 
 
 def load_recipe(path: str, cli_vars: Dict[str, str] | None = None) -> Recipe:
@@ -34,6 +35,17 @@ def load_recipe(path: str, cli_vars: Dict[str, str] | None = None) -> Recipe:
     recipe_dict = _load_recipe_recursive(recipe_path, visited, recipe_path.parent)
 
     recipe_dict = render_templates(recipe_dict, cli_vars)
+
+    # Load custom transforms specified under runtime.custom_transforms
+    runtime_cfg = recipe_dict.get("runtime", {}) or {}
+    custom_modules = runtime_cfg.get("custom_transforms", [])
+    if custom_modules:
+        base_dir = recipe_path.parent
+        resolved = [
+            str((base_dir / p).resolve()) if not os.path.isabs(p) else p
+            for p in custom_modules
+        ]
+        load_custom_transforms(resolved)
 
     try:
         return Recipe.from_dict(recipe_dict)

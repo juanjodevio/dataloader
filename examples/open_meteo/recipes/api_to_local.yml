@@ -1,0 +1,10 @@
+name: open_meteo_to_local
+extends: base_open_meteo.yml
+
+destination:
+  type: filestore
+  backend: local
+  format: csv
+  filepath: ./output/open_meteo_forecast.csv
+  write_mode: overwrite
+

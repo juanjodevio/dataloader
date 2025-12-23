@@ -1,0 +1,28 @@
+name: base_open_meteo
+
+source:
+  type: api
+  base_url: https://api.open-meteo.com
+  endpoint: /v1/forecast
+  params:
+    latitude: 52.52
+    longitude: 13.405
+    daily: temperature_2m_max,temperature_2m_min,precipitation_sum,weather_code
+    timezone: Europe/Berlin
+    forecast_days: 7
+  page_size: 100
+  data_path: daily
+
+transform:
+  steps:
+    - type: add_column
+      name: _loaded_at
+      value: "NOW"
+    - type: flatten_open_meteo_daily
+      source_field: daily
+
+runtime:
+  batch_size: 100
+  custom_transforms:
+    - ../flatten_data.py
+

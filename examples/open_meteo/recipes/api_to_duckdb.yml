@@ -1,0 +1,9 @@
+name: open_meteo_to_duckdb
+extends: base_open_meteo.yml
+
+destination:
+  type: duckdb
+  database: ./output/open_meteo.duckdb
+  table: weather_forecast
+  write_mode: overwrite
+

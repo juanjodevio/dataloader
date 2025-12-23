@@ -242,10 +242,9 @@ class ApiConnector:
                 for key in ["data", "results", "items", "records"]:
                     if key in result and isinstance(result[key], list):
                         return result[key]
-                raise ConnectorError(
-                    "JSONPath result is a dict but no array found",
-                    context={"data_path": self._data_path, "result_keys": list(result.keys())},
-                )
+                # If no array is found, return the dict wrapped in a list so downstream
+                # transforms can handle dict-of-arrays cases.
+                return [result]
             else:
                 raise ConnectorError(
                     "JSONPath result is not a list or dict",

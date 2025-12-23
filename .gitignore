@@ -209,5 +209,6 @@ marimo/_lsp/
 __marimo__/
 
 SOFTWARE_ARCHITECTURE_RESOURCES.md
-examples/open_meteo/*
+output/*
 MVP.md
+.state/*
