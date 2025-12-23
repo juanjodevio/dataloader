@@ -310,22 +310,19 @@ class DuckDBConnector:
                 self._table_created = True
             else:
                 # Default overwrite: delete all rows (preserves structure)
-                try:
-                    existing = self._get_existing_columns(conn)
-                    if existing:
+                existing = self._get_existing_columns(conn)
+                if existing:
+                    try:
                         conn.execute(f"DELETE FROM {self._qualified_table}")
-                    self._table_created = True
-                except duckdb.Error as e:
-                    # If table doesn't exist, create it
-                    existing = self._get_existing_columns(conn)
-                    if not existing:
-                        self._create_table(conn, batch)
-                        self._table_created = True
-                    else:
+                    except duckdb.Error as e:
                         raise ConnectorError(
                             f"Failed to delete from table for overwrite: {e}",
                             context={"table": self._table},
                         ) from e
+                # Create table if it doesn't exist
+                if not existing:
+                    self._create_table(conn, batch)
+                self._table_created = True
 
         elif self._write_mode == "merge":
             # Merge not supported in v0.1

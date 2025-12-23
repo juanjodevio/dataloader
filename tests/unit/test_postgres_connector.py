@@ -292,13 +292,14 @@ class TestPostgresConnectorFullRefresh:
         connector.write_batch(sample_batch, state)
 
         # Verify DROP TABLE was called (not TRUNCATE)
+        # Check the SQL strings in the execute calls
         drop_calls = [
-            call for call in mock_conn.execute.call_args_list
-            if isinstance(call[0][0], text) and "DROP TABLE" in str(call[0][0])
+            execute_call for execute_call in mock_conn.execute.call_args_list
+            if len(execute_call[0]) > 0 and "DROP TABLE" in str(execute_call[0][0])
         ]
         truncate_calls = [
-            call for call in mock_conn.execute.call_args_list
-            if isinstance(call[0][0], text) and "TRUNCATE" in str(call[0][0])
+            execute_call for execute_call in mock_conn.execute.call_args_list
+            if len(execute_call[0]) > 0 and "TRUNCATE" in str(execute_call[0][0])
         ]
 
         assert len(drop_calls) > 0, "DROP TABLE should be called with full_refresh=True"
@@ -338,12 +339,12 @@ class TestPostgresConnectorFullRefresh:
 
         # Verify TRUNCATE was called (not DROP)
         truncate_calls = [
-            call for call in mock_conn.execute.call_args_list
-            if isinstance(call[0][0], text) and "TRUNCATE" in str(call[0][0])
+            execute_call for execute_call in mock_conn.execute.call_args_list
+            if len(execute_call[0]) > 0 and "TRUNCATE" in str(execute_call[0][0])
         ]
         drop_calls = [
-            call for call in mock_conn.execute.call_args_list
-            if isinstance(call[0][0], text) and "DROP TABLE" in str(call[0][0])
+            execute_call for execute_call in mock_conn.execute.call_args_list
+            if len(execute_call[0]) > 0 and "DROP TABLE" in str(execute_call[0][0])
         ]
 
         assert len(truncate_calls) > 0, "TRUNCATE should be called with full_refresh=False"
@@ -384,8 +385,8 @@ class TestPostgresConnectorFullRefresh:
 
         # Verify DROP TABLE was called
         drop_calls = [
-            call for call in mock_conn.execute.call_args_list
-            if isinstance(call[0][0], text) and "DROP TABLE" in str(call[0][0])
+            execute_call for execute_call in mock_conn.execute.call_args_list
+            if len(execute_call[0]) > 0 and "DROP TABLE" in str(execute_call[0][0])
         ]
 
         assert len(drop_calls) > 0, "DROP TABLE should be called with full_refresh=True and append mode"
@@ -432,8 +433,8 @@ class TestPostgresConnectorFullRefresh:
 
         # Verify DROP TABLE was called exactly once (only on first batch)
         drop_calls = [
-            call for call in mock_conn.execute.call_args_list
-            if isinstance(call[0][0], text) and "DROP TABLE" in str(call[0][0])
+            execute_call for execute_call in mock_conn.execute.call_args_list
+            if len(execute_call[0]) > 0 and "DROP TABLE" in str(execute_call[0][0])
         ]
 
         assert len(drop_calls) == 1, "DROP TABLE should only be called once, not on every batch"

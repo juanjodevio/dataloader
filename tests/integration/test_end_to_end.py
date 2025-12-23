@@ -57,8 +57,10 @@ destination:
 
         # Verify data in DuckDB
         conn = duckdb.connect(str(temp_dir / "output.duckdb"))
-        result = conn.execute("SELECT * FROM test_table ORDER BY id").fetchall()
-        conn.close()
+        try:
+            result = conn.execute("SELECT * FROM test_table ORDER BY id").fetchall()
+        finally:
+            conn.close()
 
         assert len(result) == 3
         # CSV values are strings, DuckDB may auto-cast or preserve as strings
@@ -111,9 +113,11 @@ destination:
 
         # Verify data in DuckDB
         conn = duckdb.connect(str(temp_dir / "output.duckdb"))
-        result = conn.execute("SELECT * FROM test_table ORDER BY id").fetchall()
-        columns = [desc[0] for desc in conn.execute("DESCRIBE test_table").fetchall()]
-        conn.close()
+        try:
+            result = conn.execute("SELECT * FROM test_table ORDER BY id").fetchall()
+            columns = [desc[0] for desc in conn.execute("DESCRIBE test_table").fetchall()]
+        finally:
+            conn.close()
 
         assert "first_name" in columns
         assert "last_name" in columns
@@ -182,8 +186,10 @@ destination:
 
         # Verify data
         conn = duckdb.connect(str(temp_dir / "output.duckdb"))
-        result = conn.execute("SELECT * FROM test_table").fetchall()
-        conn.close()
+        try:
+            result = conn.execute("SELECT * FROM test_table").fetchall()
+        finally:
+            conn.close()
 
         assert len(result) == 1
         # Should have _source column from base and _recipe column from child (steps are merged)
@@ -231,9 +237,11 @@ destination:
 
         # Verify initial load
         conn = duckdb.connect(str(temp_dir / "output.duckdb"))
-        result = conn.execute("SELECT COUNT(*) FROM test_table").fetchone()
-        assert result[0] == 2
-        conn.close()
+        try:
+            result = conn.execute("SELECT COUNT(*) FROM test_table").fetchone()
+            assert result[0] == 2
+        finally:
+            conn.close()
 
         # Add new rows (simulating new data)
         with open(csv_path, "a", newline="") as f:
@@ -290,8 +298,10 @@ runtime:
 
         # Verify execution
         conn = duckdb.connect(str(temp_dir / "example.duckdb"))
-        result = conn.execute("SELECT * FROM example_table").fetchall()
-        conn.close()
+        try:
+            result = conn.execute("SELECT * FROM example_table").fetchall()
+        finally:
+            conn.close()
 
         assert len(result) == 1
         # CSV values may be strings, accept either
@@ -364,8 +374,10 @@ transform:
 
         # Verify
         conn = duckdb.connect(str(temp_dir / "test.duckdb"))
-        result = conn.execute("SELECT * FROM test_table").fetchall()
-        conn.close()
+        try:
+            result = conn.execute("SELECT * FROM test_table").fetchall()
+        finally:
+            conn.close()
 
         assert len(result) == 1
 

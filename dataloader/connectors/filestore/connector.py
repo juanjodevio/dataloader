@@ -3,6 +3,7 @@
 Uses fsspec for abstraction, supporting S3, local filesystem, Azure, GCS, and other backends.
 """
 
+import os
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Iterable, Union
@@ -574,6 +575,23 @@ class FileStoreConnector:
         # Write using fsspec (always binary mode since format handler returns bytes)
         fs = self._get_filesystem()
         try:
+            # Ensure parent directory exists (especially after full_refresh deletion)
+            if self._backend == "local":
+                # For local backend, use Python's os.makedirs for reliable directory creation
+                # Extract local path from file:// URL if present
+                local_path = file_url.replace("file://", "")
+                parent_dir = os.path.dirname(local_path)
+                if parent_dir:
+                    os.makedirs(parent_dir, exist_ok=True)
+            else:
+                # For remote backends, use fsspec's makedirs
+                # Extract parent directory from URL
+                parent_parts = file_url.rstrip("/").split("/")[:-1]
+                if len(parent_parts) > 1:
+                    parent_dir = "/".join(parent_parts)
+                    if not (parent_dir.endswith("://") or (parent_dir.endswith(":/") and len(parent_dir) == 3)):
+                        fs.makedirs(parent_dir, exist_ok=True)
+            
             with fs.open(file_url, mode="wb") as f:
                 f.write(file_content)
             self._written_files.append(file_url)

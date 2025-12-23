@@ -100,62 +100,75 @@ def _execute_sequential(
             recipe.name, recipe.schema_config
         )
 
-        for batch in source.read_batches(state):
-            batch_start = time.time()
+        try:
+            for batch in source.read_batches(state):
+                batch_start = time.time()
 
-            logger.info(
-                f"Processing batch with {batch.row_count} rows",
-                extra={
-                    "recipe_name": recipe.name,
-                    "batch_id": metrics.batches_processed + 1,
-                },
-            )
-
-            try:
-                if schema_validator and current_schema:
-                    batch, current_schema = _validate_batch(
-                        recipe.name,
-                        batch,
-                        current_schema,
-                        schema_validator,
-                        evolution,
-                        registry,
-                    )
-                    if batch.row_count == 0:
-                        continue
-
-                batch = transformer.apply(batch)
-                destination.write_batch(batch, state)
-
-                batch_time = time.time() - batch_start
-                metrics.record_batch(batch.row_count, batch_time)
-
-                state_backend.save(recipe.name, state.to_dict())
-
-                logger.debug(
-                    "Saved state after batch",
+                logger.info(
+                    f"Processing batch with {batch.row_count} rows",
                     extra={
                         "recipe_name": recipe.name,
-                        "batch_id": metrics.batches_processed,
+                        "batch_id": metrics.batches_processed + 1,
                     },
                 )
-            except Exception as e:
-                metrics.record_error(e, {"batch_id": metrics.batches_processed + 1})
-                raise
 
-        metrics.finish()
-        logger.info(
-            f"Completed execution: {metrics.get_summary()}",
-            extra={"recipe_name": recipe.name},
-        )
+                try:
+                    if schema_validator and current_schema:
+                        batch, current_schema = _validate_batch(
+                            recipe.name,
+                            batch,
+                            current_schema,
+                            schema_validator,
+                            evolution,
+                            registry,
+                        )
+                        if batch.row_count == 0:
+                            continue
 
-        # Save metrics to state metadata
-        state_dict = state_backend.load(recipe.name)
-        state = State.from_dict(state_dict)
-        state = state.update(
-            metadata={**state.metadata, "last_metrics": metrics.to_dict()}
-        )
-        state_backend.save(recipe.name, state.to_dict())
+                    batch = transformer.apply(batch)
+                    destination.write_batch(batch, state)
+
+                    batch_time = time.time() - batch_start
+                    metrics.record_batch(batch.row_count, batch_time)
+
+                    state_backend.save(recipe.name, state.to_dict())
+
+                    logger.debug(
+                        "Saved state after batch",
+                        extra={
+                            "recipe_name": recipe.name,
+                            "batch_id": metrics.batches_processed,
+                        },
+                    )
+                except Exception as e:
+                    metrics.record_error(e, {"batch_id": metrics.batches_processed + 1})
+                    raise
+
+            metrics.finish()
+            logger.info(
+                f"Completed execution: {metrics.get_summary()}",
+                extra={"recipe_name": recipe.name},
+            )
+
+            # Save metrics to state metadata
+            state_dict = state_backend.load(recipe.name)
+            state = State.from_dict(state_dict)
+            state = state.update(
+                metadata={**state.metadata, "last_metrics": metrics.to_dict()}
+            )
+            state_backend.save(recipe.name, state.to_dict())
+        finally:
+            # Ensure connectors are closed to release resources (e.g., DuckDB file handles on Windows)
+            if hasattr(source, "close"):
+                try:
+                    source.close()
+                except Exception:
+                    pass
+            if hasattr(destination, "close"):
+                try:
+                    destination.close()
+                except Exception:
+                    pass
 
     except Exception as e:
         metrics.record_error(e)
@@ -212,88 +225,101 @@ async def _execute_async(
             recipe.name, recipe.schema_config
         )
 
-        # Collect all batches first (needed for parallel processing)
-        batches = list(source.read_batches(state))
+        try:
+            # Collect all batches first (needed for parallel processing)
+            batches = list(source.read_batches(state))
 
-        if not batches:
-            logger.info("No batches to process", extra={"recipe_name": recipe.name})
-            return
+            if not batches:
+                logger.info("No batches to process", extra={"recipe_name": recipe.name})
+                return
 
-        # Process batches in parallel with semaphore control
-        semaphore = asyncio.Semaphore(parallelism)
+            # Process batches in parallel with semaphore control
+            semaphore = asyncio.Semaphore(parallelism)
 
-        async def process_batch_with_id(batch: Batch, batch_id: int) -> None:
-            """Process a single batch (async wrapper)."""
-            async with semaphore:
-                batch_start = time.time()
+            async def process_batch_with_id(batch: Batch, batch_id: int) -> None:
+                """Process a single batch (async wrapper)."""
+                async with semaphore:
+                    batch_start = time.time()
 
-                logger.info(
-                    f"Processing batch with {batch.row_count} rows",
-                    extra={
-                        "recipe_name": recipe.name,
-                        "batch_id": batch_id,
-                    },
+                    logger.info(
+                        f"Processing batch with {batch.row_count} rows",
+                        extra={
+                            "recipe_name": recipe.name,
+                            "batch_id": batch_id,
+                        },
+                    )
+
+                    try:
+                        if schema_validator and current_schema:
+                            batch_, current_schema = _validate_batch(
+                                recipe.name,
+                                batch,
+                                current_schema,
+                                schema_validator,
+                                evolution,
+                                registry,
+                            )
+                            if batch_.row_count == 0:
+                                return
+                        else:
+                            batch_ = batch
+
+                        # Transform (sync, run in executor)
+                        loop = asyncio.get_event_loop()
+                        transformed_batch = await loop.run_in_executor(
+                            None, transformer.apply, batch_
+                        )
+
+                        # Write (sync, run in executor)
+                        await loop.run_in_executor(
+                            None, destination.write_batch, transformed_batch, state
+                        )
+
+                        batch_time = time.time() - batch_start
+                        metrics.record_batch(batch.row_count, batch_time)
+
+                    except Exception as e:
+                        metrics.record_error(e, {"batch_id": batch_id})
+                        raise
+
+            # Create tasks for all batches
+            tasks = [process_batch_with_id(batch, i + 1) for i, batch in enumerate(batches)]
+
+            # Process all batches with concurrency control
+            await asyncio.gather(*tasks)
+
+            # Save state after all batches complete
+            # Update state with metrics
+            updated_state = state.update(
+                metadata={**state.metadata, "last_metrics": metrics.to_dict()}
+            )
+            state_dict_to_save = updated_state.to_dict()
+
+            if hasattr(state_backend, "save_async"):
+                await state_backend.save_async(recipe.name, state_dict_to_save)
+            else:
+                loop = asyncio.get_event_loop()
+                await loop.run_in_executor(
+                    None, state_backend.save, recipe.name, state_dict_to_save
                 )
 
-                try:
-                    if schema_validator and current_schema:
-                        batch_, current_schema = _validate_batch(
-                            recipe.name,
-                            batch,
-                            current_schema,
-                            schema_validator,
-                            evolution,
-                            registry,
-                        )
-                        if batch_.row_count == 0:
-                            return
-                    else:
-                        batch_ = batch
-
-                    # Transform (sync, run in executor)
-                    loop = asyncio.get_event_loop()
-                    transformed_batch = await loop.run_in_executor(
-                        None, transformer.apply, batch_
-                    )
-
-                    # Write (sync, run in executor)
-                    await loop.run_in_executor(
-                        None, destination.write_batch, transformed_batch, state
-                    )
-
-                    batch_time = time.time() - batch_start
-                    metrics.record_batch(batch.row_count, batch_time)
-
-                except Exception as e:
-                    metrics.record_error(e, {"batch_id": batch_id})
-                    raise
-
-        # Create tasks for all batches
-        tasks = [process_batch_with_id(batch, i + 1) for i, batch in enumerate(batches)]
-
-        # Process all batches with concurrency control
-        await asyncio.gather(*tasks)
-
-        # Save state after all batches complete
-        # Update state with metrics
-        updated_state = state.update(
-            metadata={**state.metadata, "last_metrics": metrics.to_dict()}
-        )
-        state_dict_to_save = updated_state.to_dict()
-
-        if hasattr(state_backend, "save_async"):
-            await state_backend.save_async(recipe.name, state_dict_to_save)
-        else:
-            loop = asyncio.get_event_loop()
-            await loop.run_in_executor(
-                None, state_backend.save, recipe.name, state_dict_to_save
+            metrics.finish()
+            logger.info(
+                f"Completed execution: {metrics.get_summary()}",
+                extra={"recipe_name": recipe.name},
             )
-
-        metrics.finish()
-        logger.info(
-            f"Completed execution: {metrics.get_summary()}",
-            extra={"recipe_name": recipe.name},
-        )
+        finally:
+            # Ensure connectors are closed to release resources (e.g., DuckDB file handles on Windows)
+            if hasattr(source, "close"):
+                try:
+                    source.close()
+                except Exception:
+                    pass
+            if hasattr(destination, "close"):
+                try:
+                    destination.close()
+                except Exception:
+                    pass
 
     except Exception as e:
         metrics.record_error(e)
