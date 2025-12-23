@@ -65,10 +65,12 @@ class SourceConfig(BaseModel):
 
     # API connector fields
     base_url: Optional[str] = Field(
-        default=None, description="Base URL of the API (supports templates, required for API connector)"
+        default=None,
+        description="Base URL of the API (supports templates, required for API connector)",
     )
     endpoint: Optional[str] = Field(
-        default=None, description="Relative endpoint path (e.g., '/api/search', required for API connector)"
+        default=None,
+        description="Relative endpoint path (e.g., '/api/search', required for API connector)",
     )
     params: Optional[dict] = Field(
         default=None, description="Query string parameters (supports templates)"
@@ -97,14 +99,14 @@ class SourceConfig(BaseModel):
     limit_param: Optional[str] = Field(
         default=None, description="Name of the limit parameter"
     )
-    page_size: Optional[int] = Field(
-        default=None, description="Default page size"
-    )
+    page_size: Optional[int] = Field(default=None, description="Default page size")
     data_path: Optional[str] = Field(
-        default=None, description="JSONPath to extract data array (e.g., 'data', 'results.items')"
+        default=None,
+        description="JSONPath to extract data array (e.g., 'data', 'results.items')",
     )
     total_path: Optional[str] = Field(
-        default=None, description="JSONPath to extract total count (e.g., 'total', 'pagination.total')"
+        default=None,
+        description="JSONPath to extract total count (e.g., 'total', 'pagination.total')",
     )
     timeout: Optional[int] = Field(
         default=None, description="Request timeout in seconds"

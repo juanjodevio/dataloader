@@ -61,4 +61,3 @@ class SchemaEvolution:
     def _variant_name(self, base: str, type_str: str) -> str:
         safe_type = type_str.replace(" ", "_").replace("<", "_").replace(">", "_")
         return f"{base}{self.variant_suffix_fmt.format(type=safe_type)}"
-

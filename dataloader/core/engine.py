@@ -283,7 +283,9 @@ async def _execute_async(
                         raise
 
             # Create tasks for all batches
-            tasks = [process_batch_with_id(batch, i + 1) for i, batch in enumerate(batches)]
+            tasks = [
+                process_batch_with_id(batch, i + 1) for i, batch in enumerate(batches)
+            ]
 
             # Process all batches with concurrency control
             await asyncio.gather(*tasks)
@@ -382,7 +384,12 @@ def _get_transformer(transform_config: TransformConfig) -> TransformPipeline:
 
 def _build_schema_context(
     recipe_name: str, schema_config: Optional[SchemaConfig]
-) -> tuple[Optional[SchemaValidator], Optional[Schema], Optional[SchemaEvolution], Optional[SchemaRegistry]]:
+) -> tuple[
+    Optional[SchemaValidator],
+    Optional[Schema],
+    Optional[SchemaEvolution],
+    Optional[SchemaRegistry],
+]:
     if not schema_config:
         return None, None, None, None
     validator = SchemaValidator(
@@ -394,7 +401,9 @@ def _build_schema_context(
         storage=InMemorySchemaStorage(),
         evolution=SchemaEvolution(),
     )
-    registry.register(recipe_name, base_schema, version=schema_config.version or "initial")
+    registry.register(
+        recipe_name, base_schema, version=schema_config.version or "initial"
+    )
     return validator, base_schema, registry.evolution, registry
 
 

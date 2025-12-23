@@ -138,4 +138,3 @@ def test_validate_discard_rows_drops_batch():
 
     assert result.dropped_rows is True
     assert result.ok  # no errors, rows dropped
-

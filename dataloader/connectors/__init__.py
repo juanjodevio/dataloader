@@ -6,8 +6,6 @@ This module exposes:
 - Connector implementations: PostgresConnector, DuckDBConnector, FileStoreConnector
 """
 
-from dataloader.connectors.base import Connector
-
 # Unified connectors (register themselves via @register_connector decorator on import)
 # CSV connector removed - use FileStore connector with format="csv" instead
 # from dataloader.connectors.csv.connector import CSVConnector, create_csv_connector
@@ -15,6 +13,7 @@ from dataloader.connectors.api.connector import (
     ApiConnector,
     create_api_connector,
 )
+from dataloader.connectors.base import Connector
 from dataloader.connectors.duckdb.connector import (
     DuckDBConnector,
     create_duckdb_connector,

@@ -44,15 +44,11 @@ class ApiConnectorConfig(BaseModel):
     pagination_type: Literal["page", "offset", "cursor"] = Field(
         default="page", description="Pagination strategy"
     )
-    page_param: str = Field(
-        default="page", description="Name of the page parameter"
-    )
+    page_param: str = Field(default="page", description="Name of the page parameter")
     limit_param: Optional[str] = Field(
         default=None, description="Name of the limit parameter (optional)"
     )
-    page_size: int = Field(
-        default=100, description="Default page size", ge=1
-    )
+    page_size: int = Field(default=100, description="Default page size", ge=1)
 
     # Response parsing
     data_path: Optional[str] = Field(
@@ -66,9 +62,7 @@ class ApiConnectorConfig(BaseModel):
 
     # Error handling
     timeout: int = Field(default=30, description="Request timeout in seconds", ge=1)
-    max_retries: int = Field(
-        default=3, description="Maximum number of retries", ge=0
-    )
+    max_retries: int = Field(default=3, description="Maximum number of retries", ge=0)
     retry_delay: float = Field(
         default=1.0, description="Initial delay between retries in seconds", ge=0.0
     )
@@ -94,4 +88,3 @@ class ApiConnectorConfig(BaseModel):
             if not self.auth_password:
                 raise ValueError("auth_password is required when auth_type is 'basic'")
         return self
-

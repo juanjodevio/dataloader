@@ -1,5 +1,5 @@
+from dataloader.core.schema import ContractMode, SchemaMode
 from dataloader.models.schema_config import ColumnConfig, SchemaConfig
-from dataloader.core.schema import SchemaMode, ContractMode
 
 
 def test_schema_config_to_schema():
@@ -24,4 +24,3 @@ def test_schema_config_contract_defaults():
 def test_schema_config_reflection_level_field():
     cfg = SchemaConfig(reflection_level="shallow")
     assert cfg.reflection_level == "shallow"
-

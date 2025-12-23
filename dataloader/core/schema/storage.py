@@ -58,4 +58,3 @@ class LocalJsonSchemaStorage:
         if not recipe_dir.exists():
             return []
         return [p.stem for p in recipe_dir.glob("*.json")]
-

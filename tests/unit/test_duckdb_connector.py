@@ -263,8 +263,9 @@ class TestDuckDBConnector:
 
     def test_duckdb_type_mapping(self, duckdb_config: DestinationConfig):
         """Test type mapping from Arrow types to DuckDB types."""
-        from dataloader.connectors.duckdb.type_mapper import DuckDBTypeMapper
         import pyarrow as pa
+
+        from dataloader.connectors.duckdb.type_mapper import DuckDBTypeMapper
 
         mapper = DuckDBTypeMapper()
 
@@ -487,8 +488,8 @@ class TestDuckDBIntegration:
             batch = ArrowBatch.from_rows(
                 columns=["event_id", "event_type", "timestamp"],
                 rows=[
-                    [i * 2, "click", f"2024-01-{i+1:02d}"],
-                    [i * 2 + 1, "view", f"2024-01-{i+1:02d}"],
+                    [i * 2, "click", f"2024-01-{i + 1:02d}"],
+                    [i * 2 + 1, "view", f"2024-01-{i + 1:02d}"],
                 ],
                 metadata={
                     "column_types": {

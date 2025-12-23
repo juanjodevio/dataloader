@@ -47,4 +47,3 @@ def test_lineage_tracks_versions():
     entries = lineage.get("recipe3", "a")
     assert len(entries) == 2
     assert {e.version for e in entries} == {"v1", "v2"}
-

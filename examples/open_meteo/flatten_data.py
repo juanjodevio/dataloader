@@ -55,15 +55,17 @@ class FlattenOpenMeteoDailyTransform(BaseTransform):
             raise TransformError("Flatten transform requires ArrowBatch")
 
         table = batch.to_arrow()
-        
+
         # When data_path=daily extracts a dict-of-arrays, the connector wraps it in a list.
         # PyArrow creates a table with one row where each column contains an array value.
         if len(table) == 0:
             return batch
-            
+
         if len(table) > 1:
-            raise TransformError("Flatten transform expects single row with dict-of-arrays structure")
-        
+            raise TransformError(
+                "Flatten transform expects single row with dict-of-arrays structure"
+            )
+
         # Build dict-of-arrays from the first (and only) row
         # Each column's first value should be the array
         row_dict: dict[str, Any] = {}
@@ -72,13 +74,13 @@ class FlattenOpenMeteoDailyTransform(BaseTransform):
             # Get the first (and only) value from this column, which should be an array
             value = col[0]
             # Convert Arrow array/list to Python list
-            if hasattr(value, 'as_py'):
+            if hasattr(value, "as_py"):
                 row_dict[col_name] = value.as_py()
-            elif hasattr(value, 'tolist'):
+            elif hasattr(value, "tolist"):
                 row_dict[col_name] = value.tolist()
             else:
                 row_dict[col_name] = value
-        
+
         # Support two shapes:
         # 1) row contains nested "daily" dict-of-arrays (source_field present)
         # 2) row is the dict-of-arrays itself (result of data_path=daily)
@@ -87,7 +89,7 @@ class FlattenOpenMeteoDailyTransform(BaseTransform):
             # Check if row_dict itself is the dict-of-arrays (has "time" and arrays)
             if "time" in row_dict and isinstance(row_dict["time"], list):
                 daily = row_dict
-        
+
         if daily is None:
             # Passthrough if we can't find daily data
             return batch
@@ -95,39 +97,38 @@ class FlattenOpenMeteoDailyTransform(BaseTransform):
         # Ensure daily is a dict with list values
         if not isinstance(daily, dict):
             raise TransformError(f"Expected dict-of-arrays, got {type(daily)}")
-        
+
         daily_dict: dict[str, Any] = {}
         for key, value in daily.items():
             # Ensure values are Python lists
             if isinstance(value, list):
                 daily_dict[key] = value
-            elif hasattr(value, 'as_py'):
+            elif hasattr(value, "as_py"):
                 daily_dict[key] = value.as_py()
-            elif hasattr(value, 'tolist'):
+            elif hasattr(value, "tolist"):
                 daily_dict[key] = value.tolist()
             else:
                 daily_dict[key] = value
 
         flattened = flatten_open_meteo_daily({"daily": daily_dict})
-        
+
         if not flattened:
             return batch
-        
+
         # Extract columns in consistent order (date first, then others)
         columns = list(flattened[0].keys())
-        
+
         # Convert flattened rows to ArrowBatch format (list of lists)
         rows = [[row[col] for col in columns] for row in flattened]
-        
+
         return ArrowBatch.from_rows(
-            columns=columns,
-            rows=rows,
-            metadata=getattr(batch, "metadata", {})
+            columns=columns, rows=rows, metadata=getattr(batch, "metadata", {})
         )
 
 
 @register_transform("flatten_open_meteo_daily")
-def create_flatten_open_meteo_daily_transform(config: dict[str, Any]) -> FlattenOpenMeteoDailyTransform:
+def create_flatten_open_meteo_daily_transform(
+    config: dict[str, Any],
+) -> FlattenOpenMeteoDailyTransform:
     """Factory for FlattenOpenMeteoDailyTransform."""
     return FlattenOpenMeteoDailyTransform(config)
-

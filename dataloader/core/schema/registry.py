@@ -22,7 +22,9 @@ class SchemaRegistry:
         self.lineage = lineage or SchemaLineage()
         self.evolution = evolution or SchemaEvolution()
 
-    def register(self, recipe: str, schema: Schema, version: Optional[str] = None) -> str:
+    def register(
+        self, recipe: str, schema: Schema, version: Optional[str] = None
+    ) -> str:
         version_id = version or self._timestamp_version()
 
         # If existing version present, optionally evolve?
@@ -36,7 +38,9 @@ class SchemaRegistry:
     def list_versions(self, recipe: str) -> List[str]:
         return self.storage.list_versions(recipe)
 
-    def compare(self, recipe: str, base_version: str, new_schema: Schema) -> Optional[SchemaUpdate]:
+    def compare(
+        self, recipe: str, base_version: str, new_schema: Schema
+    ) -> Optional[SchemaUpdate]:
         current = self.get(recipe, base_version)
         if current is None:
             return None
@@ -45,4 +49,3 @@ class SchemaRegistry:
 
     def _timestamp_version(self) -> str:
         return dt.datetime.utcnow().strftime("%Y%m%dT%H%M%S%fZ")
-

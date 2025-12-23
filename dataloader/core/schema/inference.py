@@ -43,7 +43,9 @@ class TypeInferrer:
             cols = list(self._flatten_schema(table.schema))
 
         schema = Schema(columns=cols)
-        return InferenceResult(schema=schema, reflection_level=level, sample_size=self.sample_size)
+        return InferenceResult(
+            schema=schema, reflection_level=level, sample_size=self.sample_size
+        )
 
     def _from_arrow_schema(self, schema: pa.Schema) -> List[Column]:
         return [
@@ -59,9 +61,13 @@ class TypeInferrer:
 
     def _flatten_schema(self, schema: pa.Schema) -> Iterable[Column]:
         for field in schema:
-            yield from self._flatten_field(prefix=field.name, field_type=field.type, nullable=field.nullable)
+            yield from self._flatten_field(
+                prefix=field.name, field_type=field.type, nullable=field.nullable
+            )
 
-    def _flatten_field(self, prefix: str, field_type: pa.DataType, nullable: bool) -> Iterable[Column]:
+    def _flatten_field(
+        self, prefix: str, field_type: pa.DataType, nullable: bool
+    ) -> Iterable[Column]:
         if pa.types.is_struct(field_type):
             for child in field_type:
                 child_prefix = f"{prefix}__{child.name}"
@@ -74,7 +80,9 @@ class TypeInferrer:
             if pa.types.is_struct(value_type):
                 for child in value_type:
                     child_prefix = f"{list_prefix}__{child.name}"
-                    yield from self._flatten_field(child_prefix, child.type, child.nullable)
+                    yield from self._flatten_field(
+                        child_prefix, child.type, child.nullable
+                    )
                 return
             col_type = f"list<{arrow_type_to_string(value_type)}>"
             yield Column(
@@ -94,4 +102,3 @@ class TypeInferrer:
             metadata={"source_path": prefix, "inferred": True},
             lineage={"data_type": col_type},
         )
-

@@ -73,9 +73,15 @@ class ApiConnector:
             self._params = config.params or {}
             self._headers = config.headers or {}
             self._auth_type = config.auth_type
-            self._auth_token = config.auth_token.get_secret_value() if config.auth_token else None
+            self._auth_token = (
+                config.auth_token.get_secret_value() if config.auth_token else None
+            )
             self._auth_username = config.auth_username
-            self._auth_password = config.auth_password.get_secret_value() if config.auth_password else None
+            self._auth_password = (
+                config.auth_password.get_secret_value()
+                if config.auth_password
+                else None
+            )
             self._pagination_type = config.pagination_type
             self._page_param = config.page_param
             self._limit_param = config.limit_param
@@ -95,10 +101,18 @@ class ApiConnector:
             self._headers = getattr(config, "headers", {}) or {}
             self._auth_type = getattr(config, "auth_type", "none")
             auth_token = getattr(config, "auth_token", None)
-            self._auth_token = auth_token.get_secret_value() if auth_token and hasattr(auth_token, "get_secret_value") else auth_token
+            self._auth_token = (
+                auth_token.get_secret_value()
+                if auth_token and hasattr(auth_token, "get_secret_value")
+                else auth_token
+            )
             self._auth_username = getattr(config, "auth_username", None)
             auth_password = getattr(config, "auth_password", None)
-            self._auth_password = auth_password.get_secret_value() if auth_password and hasattr(auth_password, "get_secret_value") else auth_password
+            self._auth_password = (
+                auth_password.get_secret_value()
+                if auth_password and hasattr(auth_password, "get_secret_value")
+                else auth_password
+            )
             self._pagination_type = getattr(config, "pagination_type", "page")
             self._page_param = getattr(config, "page_param", "page")
             self._limit_param = getattr(config, "limit_param", None)
@@ -213,9 +227,7 @@ class ApiConnector:
             if isinstance(response_json, dict):
                 # Try common keys
                 for key in ["data", "results", "items", "records"]:
-                    if key in response_json and isinstance(
-                        response_json[key], list
-                    ):
+                    if key in response_json and isinstance(response_json[key], list):
                         return response_json[key]
                 # If no common key found, raise error
                 raise ConnectorError(
@@ -248,7 +260,10 @@ class ApiConnector:
             else:
                 raise ConnectorError(
                     "JSONPath result is not a list or dict",
-                    context={"data_path": self._data_path, "result_type": type(result).__name__},
+                    context={
+                        "data_path": self._data_path,
+                        "result_type": type(result).__name__,
+                    },
                 )
         except Exception as e:
             raise ConnectorError(
@@ -291,9 +306,7 @@ class ApiConnector:
 
         return None
 
-    def _make_request(
-        self, url: str, attempt: int = 0
-    ) -> requests.Response:
+    def _make_request(self, url: str, attempt: int = 0) -> requests.Response:
         """Make HTTP GET request with retry logic and exponential backoff.
 
         Args:
@@ -313,7 +326,7 @@ class ApiConnector:
         except Timeout as e:
             # Timeout errors - retry with exponential backoff
             if attempt < self._max_retries:
-                delay = self._retry_delay * (self._backoff_rate ** attempt)
+                delay = self._retry_delay * (self._backoff_rate**attempt)
                 time.sleep(delay)
                 return self._make_request(url, attempt + 1)
             raise ConnectorError(
@@ -333,7 +346,7 @@ class ApiConnector:
             # Connection errors or other request exceptions - retry with backoff
             # Note: 5xx errors are handled by urllib3 Retry automatically
             if attempt < self._max_retries:
-                delay = self._retry_delay * (self._backoff_rate ** attempt)
+                delay = self._retry_delay * (self._backoff_rate**attempt)
                 time.sleep(delay)
                 return self._make_request(url, attempt + 1)
 
@@ -482,4 +495,3 @@ def create_api_connector(config: ConnectorConfigUnion) -> ApiConnector:
         ApiConnector instance.
     """
     return ApiConnector(config)
-

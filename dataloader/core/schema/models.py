@@ -121,4 +121,3 @@ class Schema(BaseModel):
             )
 
         return cls(columns=columns)
-

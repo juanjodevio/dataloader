@@ -37,4 +37,3 @@ class SchemaLineage:
 
     def get(self, recipe: str, column: str) -> List[ColumnLineageEntry]:
         return list(self._data.get(recipe, {}).get(column, []))
-

@@ -294,16 +294,20 @@ class TestPostgresConnectorFullRefresh:
         # Verify DROP TABLE was called (not TRUNCATE)
         # Check the SQL strings in the execute calls
         drop_calls = [
-            execute_call for execute_call in mock_conn.execute.call_args_list
+            execute_call
+            for execute_call in mock_conn.execute.call_args_list
             if len(execute_call[0]) > 0 and "DROP TABLE" in str(execute_call[0][0])
         ]
         truncate_calls = [
-            execute_call for execute_call in mock_conn.execute.call_args_list
+            execute_call
+            for execute_call in mock_conn.execute.call_args_list
             if len(execute_call[0]) > 0 and "TRUNCATE" in str(execute_call[0][0])
         ]
 
         assert len(drop_calls) > 0, "DROP TABLE should be called with full_refresh=True"
-        assert len(truncate_calls) == 0, "TRUNCATE should not be called with full_refresh=True"
+        assert (
+            len(truncate_calls) == 0
+        ), "TRUNCATE should not be called with full_refresh=True"
         mock_insert_batch.assert_called_once()
 
     @patch("dataloader.connectors.postgres.connector.PostgresConnector._insert_batch")
@@ -339,16 +343,22 @@ class TestPostgresConnectorFullRefresh:
 
         # Verify TRUNCATE was called (not DROP)
         truncate_calls = [
-            execute_call for execute_call in mock_conn.execute.call_args_list
+            execute_call
+            for execute_call in mock_conn.execute.call_args_list
             if len(execute_call[0]) > 0 and "TRUNCATE" in str(execute_call[0][0])
         ]
         drop_calls = [
-            execute_call for execute_call in mock_conn.execute.call_args_list
+            execute_call
+            for execute_call in mock_conn.execute.call_args_list
             if len(execute_call[0]) > 0 and "DROP TABLE" in str(execute_call[0][0])
         ]
 
-        assert len(truncate_calls) > 0, "TRUNCATE should be called with full_refresh=False"
-        assert len(drop_calls) == 0, "DROP TABLE should not be called with full_refresh=False"
+        assert (
+            len(truncate_calls) > 0
+        ), "TRUNCATE should be called with full_refresh=False"
+        assert (
+            len(drop_calls) == 0
+        ), "DROP TABLE should not be called with full_refresh=False"
         mock_insert_batch.assert_called_once()
 
     @patch("dataloader.connectors.postgres.connector.PostgresConnector._insert_batch")
@@ -385,11 +395,14 @@ class TestPostgresConnectorFullRefresh:
 
         # Verify DROP TABLE was called
         drop_calls = [
-            execute_call for execute_call in mock_conn.execute.call_args_list
+            execute_call
+            for execute_call in mock_conn.execute.call_args_list
             if len(execute_call[0]) > 0 and "DROP TABLE" in str(execute_call[0][0])
         ]
 
-        assert len(drop_calls) > 0, "DROP TABLE should be called with full_refresh=True and append mode"
+        assert (
+            len(drop_calls) > 0
+        ), "DROP TABLE should be called with full_refresh=True and append mode"
         mock_insert_batch.assert_called_once()
 
     @patch("dataloader.connectors.postgres.connector.PostgresConnector._insert_batch")
@@ -433,9 +446,14 @@ class TestPostgresConnectorFullRefresh:
 
         # Verify DROP TABLE was called exactly once (only on first batch)
         drop_calls = [
-            execute_call for execute_call in mock_conn.execute.call_args_list
+            execute_call
+            for execute_call in mock_conn.execute.call_args_list
             if len(execute_call[0]) > 0 and "DROP TABLE" in str(execute_call[0][0])
         ]
 
-        assert len(drop_calls) == 1, "DROP TABLE should only be called once, not on every batch"
-        assert mock_insert_batch.call_count == 2, "Insert should be called for each batch"
+        assert (
+            len(drop_calls) == 1
+        ), "DROP TABLE should only be called once, not on every batch"
+        assert (
+            mock_insert_batch.call_count == 2
+        ), "Insert should be called for each batch"

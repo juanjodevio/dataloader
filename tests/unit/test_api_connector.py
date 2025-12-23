@@ -87,7 +87,9 @@ class TestApiConnector:
 
     def test_api_connector_auth_bearer(self):
         """Test bearer token authentication."""
-        with patch("dataloader.connectors.api.connector.requests.Session") as mock_session_class:
+        with patch(
+            "dataloader.connectors.api.connector.requests.Session"
+        ) as mock_session_class:
             with patch("dataloader.connectors.api.connector.parse_jsonpath"):
                 # Create a real dict for headers to test actual behavior
                 mock_session = Mock()
@@ -104,7 +106,9 @@ class TestApiConnector:
 
                 # Check that Authorization header was set
                 assert "Authorization" in connector._session.headers
-                assert connector._session.headers["Authorization"] == "Bearer test-token"
+                assert (
+                    connector._session.headers["Authorization"] == "Bearer test-token"
+                )
 
     def test_api_connector_auth_bearer_missing_token(self):
         """Test that bearer auth requires token."""
@@ -119,9 +123,13 @@ class TestApiConnector:
 
     def test_api_connector_auth_basic(self):
         """Test basic authentication."""
-        with patch("dataloader.connectors.api.connector.requests.Session") as mock_session_class:
+        with patch(
+            "dataloader.connectors.api.connector.requests.Session"
+        ) as mock_session_class:
             with patch("dataloader.connectors.api.connector.parse_jsonpath"):
-                with patch("dataloader.connectors.api.connector.requests.auth.HTTPBasicAuth") as mock_auth_class:
+                with patch(
+                    "dataloader.connectors.api.connector.requests.auth.HTTPBasicAuth"
+                ) as mock_auth_class:
                     # Create a real dict for headers to test actual behavior
                     mock_session = Mock()
                     mock_session.headers = {}
@@ -214,7 +222,9 @@ class TestApiConnector:
                 assert len(data) == 2
                 assert data[0]["id"] == 1
 
-    def test_extract_data_from_dict_with_common_key(self, api_config: ApiConnectorConfig):
+    def test_extract_data_from_dict_with_common_key(
+        self, api_config: ApiConnectorConfig
+    ):
         """Test extracting data from dict with common key."""
         with patch("dataloader.connectors.api.connector.requests"):
             with patch("dataloader.connectors.api.connector.parse_jsonpath"):
@@ -235,7 +245,9 @@ class TestApiConnector:
             mock_expr.find.return_value = [mock_match]
             mock_parse.return_value = mock_expr
 
-            with patch("dataloader.connectors.api.connector.parse_jsonpath", mock_parse):
+            with patch(
+                "dataloader.connectors.api.connector.parse_jsonpath", mock_parse
+            ):
                 config = ApiConnectorConfig(
                     base_url="https://api.example.com",
                     endpoint="/data",
@@ -280,7 +292,9 @@ class TestApiConnector:
             mock_expr.find.return_value = [mock_match]
             mock_parse.return_value = mock_expr
 
-            with patch("dataloader.connectors.api.connector.parse_jsonpath", mock_parse):
+            with patch(
+                "dataloader.connectors.api.connector.parse_jsonpath", mock_parse
+            ):
                 config = ApiConnectorConfig(
                     base_url="https://api.example.com",
                     endpoint="/data",
@@ -361,9 +375,7 @@ class TestApiConnector:
 
     @patch("dataloader.connectors.api.connector.requests.Session")
     @patch("dataloader.connectors.api.connector.parse_jsonpath")
-    def test_read_batches_pagination_offset(
-        self, mock_parse, mock_session_class
-    ):
+    def test_read_batches_pagination_offset(self, mock_parse, mock_session_class):
         """Test reading with offset-based pagination."""
         config = ApiConnectorConfig(
             base_url="https://api.example.com",
@@ -375,9 +387,7 @@ class TestApiConnector:
 
         # Mock responses
         mock_response1 = Mock()
-        mock_response1.json.return_value = {
-            "data": [{"id": i} for i in range(1, 11)]
-        }
+        mock_response1.json.return_value = {"data": [{"id": i} for i in range(1, 11)]}
         mock_response1.raise_for_status = Mock()
 
         mock_response2 = Mock()
@@ -477,7 +487,9 @@ class TestApiConnector:
         with pytest.raises(ConnectorError) as exc_info:
             list(connector.read_batches(state))
         # Should contain either "Client error" or "Failed to fetch"
-        assert "Client error" in str(exc_info.value) or "Failed to fetch" in str(exc_info.value)
+        assert "Client error" in str(exc_info.value) or "Failed to fetch" in str(
+            exc_info.value
+        )
 
     @patch("dataloader.connectors.api.connector.requests.Session")
     @patch("dataloader.connectors.api.connector.parse_jsonpath")
@@ -544,4 +556,3 @@ class TestApiConnector:
                 connector = create_api_connector(api_config)
 
                 assert isinstance(connector, ApiConnector)
-

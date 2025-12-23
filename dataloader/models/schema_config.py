@@ -59,4 +59,3 @@ class SchemaConfig(BaseModel):
 
 
 __all__ = ["SchemaConfig", "ColumnConfig", "ContractMode"]
-

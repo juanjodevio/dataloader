@@ -1,8 +1,7 @@
 """Tests for connector type mappers."""
 
-import pytest
-
 import pyarrow as pa
+import pytest
 
 from dataloader.connectors.duckdb.type_mapper import DuckDBTypeMapper
 from dataloader.connectors.postgres.type_mapper import PostgresTypeMapper

@@ -45,7 +45,7 @@ transform:
 
 destination:
   type: duckdb
-  database: {str(temp_dir / 'output.duckdb')!r}
+  database: {str(temp_dir / "output.duckdb")!r}
   table: test_table
   write_mode: overwrite
 """
@@ -102,7 +102,7 @@ transform:
 
 destination:
   type: duckdb
-  database: {str(temp_dir / 'output.duckdb')!r}
+  database: {str(temp_dir / "output.duckdb")!r}
   table: test_table
   write_mode: overwrite
 """
@@ -115,7 +115,9 @@ destination:
         conn = duckdb.connect(str(temp_dir / "output.duckdb"))
         try:
             result = conn.execute("SELECT * FROM test_table ORDER BY id").fetchall()
-            columns = [desc[0] for desc in conn.execute("DESCRIBE test_table").fetchall()]
+            columns = [
+                desc[0] for desc in conn.execute("DESCRIBE test_table").fetchall()
+            ]
         finally:
             conn.close()
 
@@ -171,7 +173,7 @@ transform:
 
 destination:
   type: duckdb
-  database: {str(temp_dir / 'output.duckdb')!r}
+  database: {str(temp_dir / "output.duckdb")!r}
   table: test_table
   write_mode: overwrite
 """
@@ -225,7 +227,7 @@ transform:
 
 destination:
   type: duckdb
-  database: {str(temp_dir / 'output.duckdb')!r}
+  database: {str(temp_dir / "output.duckdb")!r}
   table: test_table
   write_mode: append
 """
@@ -282,7 +284,7 @@ transform:
 
 destination:
   type: duckdb
-  database: {str(temp_dir / 'example.duckdb')!r}
+  database: {str(temp_dir / "example.duckdb")!r}
   table: example_table
   write_mode: overwrite
 
@@ -358,7 +360,7 @@ source:
 
 destination:
   type: duckdb
-  database: {str(temp_dir / 'test.duckdb')!r}
+  database: {str(temp_dir / "test.duckdb")!r}
   table: test_table
   write_mode: overwrite
 
@@ -401,7 +403,7 @@ source:
 
 destination:
   type: duckdb
-  database: {str(temp_dir / 'test.duckdb')!r}
+  database: {str(temp_dir / "test.duckdb")!r}
   table: test_table
   write_mode: append
 

@@ -60,14 +60,30 @@ class SchemaValidator:
             mode = self.contracts.column_mode(name, arrow_type_to_string(field.type))
             if mode == ContractMode.DISCARD_COLUMNS:
                 dropped.append(name)
-                warnings.append(ValidationIssue(level="warning", message=f"dropped column '{name}'", column=name))
+                warnings.append(
+                    ValidationIssue(
+                        level="warning", message=f"dropped column '{name}'", column=name
+                    )
+                )
                 continue
             if mode == ContractMode.DISCARD_ROWS:
                 drop_rows = True
-                warnings.append(ValidationIssue(level="warning", message=f"dropped rows due to extra column '{name}'", column=name))
+                warnings.append(
+                    ValidationIssue(
+                        level="warning",
+                        message=f"dropped rows due to extra column '{name}'",
+                        column=name,
+                    )
+                )
                 continue
             if self.mode == SchemaMode.STRICT or mode == ContractMode.FREEZE:
-                errors.append(ValidationIssue(level="error", message=f"unexpected column '{name}'", column=name))
+                errors.append(
+                    ValidationIssue(
+                        level="error",
+                        message=f"unexpected column '{name}'",
+                        column=name,
+                    )
+                )
                 continue
             if self.mode == SchemaMode.INFER:
                 new_columns.append(
@@ -79,9 +95,19 @@ class SchemaValidator:
                         lineage={"data_type": arrow_type_to_string(field.type)},
                     )
                 )
-                warnings.append(ValidationIssue(level="warning", message=f"added column '{name}' to schema", column=name))
+                warnings.append(
+                    ValidationIssue(
+                        level="warning",
+                        message=f"added column '{name}' to schema",
+                        column=name,
+                    )
+                )
             else:
-                warnings.append(ValidationIssue(level="warning", message=f"extra column '{name}'", column=name))
+                warnings.append(
+                    ValidationIssue(
+                        level="warning", message=f"extra column '{name}'", column=name
+                    )
+                )
 
         # Missing columns expected by schema
         for name, col in schema_map.items():
@@ -90,12 +116,26 @@ class SchemaValidator:
             mode = self.contracts.column_mode(name, col.type)
             if mode == ContractMode.DISCARD_ROWS:
                 drop_rows = True
-                warnings.append(ValidationIssue(level="warning", message=f"dropped rows due to missing column '{name}'", column=name))
+                warnings.append(
+                    ValidationIssue(
+                        level="warning",
+                        message=f"dropped rows due to missing column '{name}'",
+                        column=name,
+                    )
+                )
                 continue
             if self.mode == SchemaMode.STRICT or mode == ContractMode.FREEZE:
-                errors.append(ValidationIssue(level="error", message=f"missing column '{name}'", column=name))
+                errors.append(
+                    ValidationIssue(
+                        level="error", message=f"missing column '{name}'", column=name
+                    )
+                )
             else:
-                warnings.append(ValidationIssue(level="warning", message=f"missing column '{name}'", column=name))
+                warnings.append(
+                    ValidationIssue(
+                        level="warning", message=f"missing column '{name}'", column=name
+                    )
+                )
 
         # Type mismatches on shared columns
         for name, field in table_fields.items():
@@ -108,7 +148,13 @@ class SchemaValidator:
             mode = self.contracts.column_mode(name, actual)
             if mode == ContractMode.DISCARD_ROWS:
                 drop_rows = True
-                warnings.append(ValidationIssue(level="warning", message=f"dropped rows due to type mismatch for '{name}'", column=name))
+                warnings.append(
+                    ValidationIssue(
+                        level="warning",
+                        message=f"dropped rows due to type mismatch for '{name}'",
+                        column=name,
+                    )
+                )
                 continue
             if mode == ContractMode.FREEZE:
                 errors.append(
@@ -144,4 +190,3 @@ class SchemaValidator:
             validated_schema=updated_schema,
             dropped_rows=drop_rows,
         )
-

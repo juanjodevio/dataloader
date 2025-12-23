@@ -287,9 +287,11 @@ class DuckDBConnector:
                         context={"table": self._table, "column": col_name},
                     ) from e
 
-    def _handle_write_mode(self, conn: DuckDBPyConnection, batch: ArrowBatch, full_refresh: bool = False) -> None:
+    def _handle_write_mode(
+        self, conn: DuckDBPyConnection, batch: ArrowBatch, full_refresh: bool = False
+    ) -> None:
         """Handle write mode logic before inserting.
-        
+
         Args:
             conn: Database connection
             batch: Batch to write
@@ -395,7 +397,7 @@ class DuckDBConnector:
         full_refresh = state.metadata.get("full_refresh", False)
         # DuckDB supports full_refresh (DROP TABLE operations)
         # If full_refresh were not supported, raise ConnectorError here with a clear message
-        
+
         conn = self._get_connection()
 
         self._handle_write_mode(conn, batch, full_refresh=full_refresh)

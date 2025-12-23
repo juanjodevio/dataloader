@@ -148,7 +148,11 @@ class FileStoreConnector:
 
             if access_key and secret_key:
                 # Handle SecretStr if present
-                secret_key_str = secret_key.get_secret_value() if hasattr(secret_key, "get_secret_value") else secret_key
+                secret_key_str = (
+                    secret_key.get_secret_value()
+                    if hasattr(secret_key, "get_secret_value")
+                    else secret_key
+                )
                 storage_options["key"] = access_key
                 storage_options["secret"] = secret_key_str
 
@@ -473,7 +477,9 @@ class FileStoreConnector:
                 return f"s3://{bucket}/"
         else:
             # For other backends, use the configured path
-            if self._path.startswith(("s3://", "gs://", "az://", "abfss://", "file://")):
+            if self._path.startswith(
+                ("s3://", "gs://", "az://", "abfss://", "file://")
+            ):
                 return self._path.rstrip("/") + "/"
             else:
                 # Local filesystem - ensure it's a directory path
@@ -481,7 +487,7 @@ class FileStoreConnector:
 
     def _delete_existing_files(self) -> None:
         """Delete existing files at the destination path (for overwrite mode).
-        
+
         Only deletes files matching the configured format extensions.
         """
         fs = self._get_filesystem()
@@ -508,7 +514,7 @@ class FileStoreConnector:
 
     def _delete_entire_path(self) -> None:
         """Delete entire prefix/path (for full refresh mode).
-        
+
         Destructively removes all files and subdirectories at the path.
         """
         fs = self._get_filesystem()
@@ -539,7 +545,7 @@ class FileStoreConnector:
             ConnectorError: If file operations fail.
         """
         full_refresh = state.metadata.get("full_refresh", False)
-        
+
         # FileStore supports full_refresh (recursive path deletion via fsspec)
         # If full_refresh were not supported for a specific backend, raise ConnectorError here:
         # if full_refresh:
@@ -548,7 +554,7 @@ class FileStoreConnector:
         #         "The backend does not support recursive path deletion.",
         #         context={"backend": self._backend, "path": self._path},
         #     )
-        
+
         if self._write_mode == "merge":
             raise ConnectorError(
                 "Merge write mode is not supported for FileStore in v0.1. Use 'append' or 'overwrite'.",
@@ -589,9 +595,12 @@ class FileStoreConnector:
                 parent_parts = file_url.rstrip("/").split("/")[:-1]
                 if len(parent_parts) > 1:
                     parent_dir = "/".join(parent_parts)
-                    if not (parent_dir.endswith("://") or (parent_dir.endswith(":/") and len(parent_dir) == 3)):
+                    if not (
+                        parent_dir.endswith("://")
+                        or (parent_dir.endswith(":/") and len(parent_dir) == 3)
+                    ):
                         fs.makedirs(parent_dir, exist_ok=True)
-            
+
             with fs.open(file_url, mode="wb") as f:
                 f.write(file_content)
             self._written_files.append(file_url)

@@ -24,7 +24,9 @@ class SchemaContracts(BaseModel):
     def table_mode(self, table_name: str) -> ContractMode:
         return self.tables.get(table_name, self.default)
 
-    def column_mode(self, column_name: str, data_type: str | None = None) -> ContractMode:
+    def column_mode(
+        self, column_name: str, data_type: str | None = None
+    ) -> ContractMode:
         if column_name in self.columns:
             return self.columns[column_name]
         if data_type and data_type in self.data_types:
@@ -33,4 +35,3 @@ class SchemaContracts(BaseModel):
 
     def data_type_mode(self, data_type: str) -> ContractMode:
         return self.data_types.get(data_type, self.default)
-

@@ -70,7 +70,9 @@ class PostgresConnector:
             self._port = config.port or self.DEFAULT_PORT
             self._database = config.database
             self._user = config.user
-            self._password = config.password.get_secret_value() if config.password else None
+            self._password = (
+                config.password.get_secret_value() if config.password else None
+            )
             self._db_schema = config.db_schema or "public"
             self._table = config.table
             self._write_mode = config.write_mode
@@ -80,7 +82,11 @@ class PostgresConnector:
             self._port = config.port or self.DEFAULT_PORT
             self._database = config.database or ""
             self._user = config.user or ""
-            self._password = config.password.get_secret_value() if config.password else None.get_secret_value() if config.password else None
+            self._password = (
+                config.password.get_secret_value()
+                if config.password
+                else None.get_secret_value() if config.password else None
+            )
             self._db_schema = config.db_schema or "public"
             self._table = config.table or ""
             self._write_mode = "append"  # Default for source configs
@@ -90,7 +96,11 @@ class PostgresConnector:
             self._port = config.port or self.DEFAULT_PORT
             self._database = config.database or ""
             self._user = config.user or ""
-            self._password = config.password.get_secret_value() if config.password else None.get_secret_value() if config.password else None
+            self._password = (
+                config.password.get_secret_value()
+                if config.password
+                else None.get_secret_value() if config.password else None
+            )
             self._db_schema = config.db_schema or "public"
             self._table = config.table or ""
             self._write_mode = config.write_mode
@@ -315,9 +325,11 @@ class PostgresConnector:
                         context={"table": self._table, "column": col_name},
                     ) from e
 
-    def _handle_write_mode(self, conn: Any, batch: ArrowBatch, full_refresh: bool = False) -> None:
+    def _handle_write_mode(
+        self, conn: Any, batch: ArrowBatch, full_refresh: bool = False
+    ) -> None:
         """Handle write mode logic before inserting.
-        
+
         Args:
             conn: Database connection
             batch: Batch to write
@@ -428,7 +440,7 @@ class PostgresConnector:
         full_refresh = state.metadata.get("full_refresh", False)
         # PostgreSQL supports full_refresh (DROP TABLE operations)
         # If full_refresh were not supported, raise ConnectorError here with a clear message
-        
+
         engine = self._get_engine()
         with engine.connect() as conn:
             self._handle_write_mode(conn, batch, full_refresh=full_refresh)
