@@ -90,7 +90,7 @@ dev = [
 dataloader = "dataloader.cli.main:main"
 
 [tool.mypy]
-python_version = "3.9"
+python_version = "3.11"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = false
@@ -118,11 +118,15 @@ module = [
     "fsspec.*",
     "requests.*",
     "boto3.*",
+    "botocore.*",
     "sqlalchemy.*",
     "pandas.*",
     "yaml.*",
     "click.*",
     "json_log_formatter.*",
+    "duckdb.*",
+    "s3fs.*",
+    "jsonpath_ng.*",
 ]
 ignore_missing_imports = true
 

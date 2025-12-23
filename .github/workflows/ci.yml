@@ -35,7 +35,7 @@ jobs:
         run: uv run isort --profile black --check .
 
       - name: Run mypy (type check)
-        run: uv run mypy dataloader
+        run: uv run mypy -p dataloader
 
       - name: Run bandit (security scan)
         run: uv run bandit -r dataloader

@@ -6,7 +6,7 @@ Uses fsspec for abstraction, supporting S3, local filesystem, Azure, GCS, and ot
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Iterable, Union
+from typing import Any, Iterable, Literal, Union
 
 import fsspec
 from fsspec import AbstractFileSystem
@@ -61,7 +61,14 @@ class FileStoreConnector:
             self._backend = self._infer_backend_from_config(config)
             self._path = config.filepath or ""
             self._format = getattr(config, "format", "csv") or "csv"
-            self._write_mode = config.write_mode
+            # FileStore only supports append/overwrite, not merge
+            write_mode = config.write_mode
+            if write_mode == "merge":
+                raise ConnectorError(
+                    "Merge write mode is not supported for FileStore. Use 'append' or 'overwrite'.",
+                    context={"path": self._path, "write_mode": write_mode},
+                )
+            self._write_mode: Literal["append", "overwrite"] = write_mode  # type: ignore[assignment]
 
         # Check S3-specific dependencies if using S3 backend
         if self._backend == "s3":

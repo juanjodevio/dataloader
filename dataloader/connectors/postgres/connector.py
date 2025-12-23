@@ -85,7 +85,7 @@ class PostgresConnector:
             self._password = (
                 config.password.get_secret_value()
                 if config.password
-                else None.get_secret_value() if config.password else None
+                else None
             )
             self._db_schema = config.db_schema or "public"
             self._table = config.table or ""
@@ -99,7 +99,7 @@ class PostgresConnector:
             self._password = (
                 config.password.get_secret_value()
                 if config.password
-                else None.get_secret_value() if config.password else None
+                else None
             )
             self._db_schema = config.db_schema or "public"
             self._table = config.table or ""

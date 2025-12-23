@@ -261,6 +261,7 @@ async def _execute_async(
 
             async def process_batch_with_id(batch: Batch, batch_id: int) -> None:
                 """Process a single batch (async wrapper)."""
+                nonlocal current_schema  # Allow modification of outer scope variable
                 async with semaphore:
                     batch_start = time.time()
 
