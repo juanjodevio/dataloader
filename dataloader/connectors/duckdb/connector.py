@@ -8,8 +8,8 @@ try:
     import duckdb
     from duckdb import DuckDBPyConnection
 except ImportError:
-    duckdb = None  # type: ignore
-    DuckDBPyConnection = None  # type: ignore
+    duckdb = None
+    DuckDBPyConnection = None
 
 import pyarrow as pa
 

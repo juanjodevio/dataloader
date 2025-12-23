@@ -7,7 +7,7 @@ from dataloader.connectors.registry import ConnectorConfigUnion, register_connec
 try:
     import pandas as pd
 except ImportError:
-    pd = None  # type: ignore
+    pd = None
 
 import pyarrow as pa
 
@@ -16,11 +16,11 @@ try:
     from sqlalchemy.engine import Engine
     from sqlalchemy.exc import SQLAlchemyError
 except ImportError:
-    create_engine = None  # type: ignore
-    inspect = None  # type: ignore
-    text = None  # type: ignore
-    Engine = None  # type: ignore
-    SQLAlchemyError = None  # type: ignore
+    create_engine = None
+    inspect = None
+    text = None
+    Engine = None
+    SQLAlchemyError = None
 
 from dataloader.core.batch import ArrowBatch, Batch
 from dataloader.core.exceptions import ConnectorError
