@@ -74,7 +74,18 @@ def _execute_sequential(
     recipe: Recipe,
     state_backend: StateBackend,
 ) -> None:
-    """Execute recipe sequentially (one batch at a time)."""
+    """Execute recipe sequentially (one batch at a time).
+
+    Processes batches one at a time in order, applying transforms and writing
+    to destination. State is saved after each batch for resumability.
+
+    Args:
+        recipe: Recipe object containing source, transform, and destination configs.
+        state_backend: Backend for loading and saving state.
+
+    Raises:
+        EngineError: If execution fails at any step.
+    """
     metrics = MetricsCollector(recipe.name)
 
     logger.info("Starting execution", extra={"recipe_name": recipe.name})
@@ -185,7 +196,19 @@ async def _execute_async(
     recipe: Recipe,
     state_backend: StateBackend,
 ) -> None:
-    """Execute recipe with async parallelism."""
+    """Execute recipe with async parallelism.
+
+    Processes multiple batches concurrently using asyncio, with concurrency
+    controlled by recipe.runtime.parallelism. All batches are collected first,
+    then processed in parallel with semaphore-based concurrency control.
+
+    Args:
+        recipe: Recipe object containing source, transform, and destination configs.
+        state_backend: Backend for loading and saving state.
+
+    Raises:
+        EngineError: If execution fails at any step.
+    """
     metrics = MetricsCollector(recipe.name)
     parallelism = recipe.runtime.parallelism
 
@@ -390,6 +413,19 @@ def _build_schema_context(
     Optional[SchemaEvolution],
     Optional[SchemaRegistry],
 ]:
+    """Build schema validation context from schema configuration.
+
+    Creates schema validator, base schema, evolution handler, and registry
+    for schema validation during batch processing.
+
+    Args:
+        recipe_name: Name of the recipe (used for schema registration).
+        schema_config: Optional schema configuration from recipe.
+
+    Returns:
+        Tuple containing (validator, schema, evolution, registry).
+        All values are None if schema_config is None.
+    """
     if not schema_config:
         return None, None, None, None
     validator = SchemaValidator(
@@ -415,6 +451,26 @@ def _validate_batch(
     evolution: Optional[SchemaEvolution],
     registry: Optional[SchemaRegistry],
 ) -> tuple[Batch, Schema]:
+    """Validate batch against schema and apply evolution rules.
+
+    Validates the batch data against the expected schema, dropping invalid
+    rows or columns as configured. Applies schema evolution if enabled.
+
+    Args:
+        recipe_name: Name of the recipe (for schema registration).
+        batch: Batch to validate (must be Arrow-compatible).
+        schema: Expected schema to validate against.
+        validator: Schema validator instance.
+        evolution: Optional schema evolution handler.
+        registry: Optional schema registry for tracking schema changes.
+
+    Returns:
+        Tuple of (validated_batch, updated_schema). The batch may have
+        rows or columns removed if validation fails.
+
+    Raises:
+        EngineError: If batch is not Arrow-compatible or validation fails.
+    """
     if not hasattr(batch, "to_arrow"):
         raise EngineError(
             "Schema validation requires Arrow-compatible batch",

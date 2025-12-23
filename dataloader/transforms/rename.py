@@ -74,7 +74,14 @@ class RenameColumnsTransform:
         )
 
     def _validate_columns_exist(self, columns: list[str]) -> None:
-        """Validate all mapping keys exist in batch columns."""
+        """Validate all mapping keys exist in batch columns.
+
+        Args:
+            columns: List of column names in the batch.
+
+        Raises:
+            TransformError: If any mapping key doesn't exist in columns.
+        """
         column_set = set(columns)
         missing = [key for key in self._mapping.keys() if key not in column_set]
         if missing:
@@ -89,5 +96,12 @@ class RenameColumnsTransform:
 
 @register_transform("rename_columns")
 def create_rename_transform(config: dict[str, Any]) -> RenameColumnsTransform:
-    """Factory function for RenameColumnsTransform."""
+    """Factory function for RenameColumnsTransform.
+
+    Args:
+        config: Transform configuration containing 'mapping' dict.
+
+    Returns:
+        RenameColumnsTransform instance.
+    """
     return RenameColumnsTransform(config)

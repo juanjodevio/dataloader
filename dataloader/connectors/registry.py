@@ -111,10 +111,17 @@ def get_connector(
 
 
 def list_connector_types() -> list[str]:
-    """Return a list of all registered connector types."""
+    """Return a list of all registered connector types.
+
+    Returns:
+        Sorted list of connector type strings.
+    """
     return sorted(_connector_registry.keys())
 
 
 def clear_registries() -> None:
-    """Clear all registered connectors. Intended for testing only."""
+    """Clear all registered connectors.
+
+    Intended for testing only. Removes all connector registrations.
+    """
     _connector_registry.clear()

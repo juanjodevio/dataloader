@@ -20,7 +20,17 @@ _TYPE_CONVERTERS: dict[str, type | Any] = {
 
 
 def _parse_datetime(value: Any) -> datetime:
-    """Parse datetime from ISO format string or return if already datetime."""
+    """Parse datetime from ISO format string or return if already datetime.
+
+    Args:
+        value: Value to parse (datetime, ISO string, or None).
+
+    Returns:
+        Parsed datetime object, or None if value is None.
+
+    Raises:
+        ValueError: If value cannot be parsed as datetime.
+    """
     if isinstance(value, datetime):
         return value
     if value is None:
@@ -66,7 +76,14 @@ class CastColumnsTransform:
         self._columns = columns
 
     def _validate_types(self, columns: dict[str, str]) -> None:
-        """Validate all specified types are supported."""
+        """Validate all specified types are supported.
+
+        Args:
+            columns: Dictionary mapping column names to type strings.
+
+        Raises:
+            TransformError: If any type is not supported.
+        """
         invalid_types = [
             (col, typ) for col, typ in columns.items() if typ not in _TYPE_CONVERTERS
         ]
@@ -146,7 +163,14 @@ class CastColumnsTransform:
         )
 
     def _validate_columns_exist(self, columns: list[str]) -> None:
-        """Validate all target columns exist in batch."""
+        """Validate all target columns exist in batch.
+
+        Args:
+            columns: List of column names in the batch.
+
+        Raises:
+            TransformError: If any target column doesn't exist.
+        """
         column_set = set(columns)
         missing = [col for col in self._columns.keys() if col not in column_set]
         if missing:
@@ -161,5 +185,12 @@ class CastColumnsTransform:
 
 @register_transform("cast")
 def create_cast_transform(config: dict[str, Any]) -> CastColumnsTransform:
-    """Factory function for CastColumnsTransform."""
+    """Factory function for CastColumnsTransform.
+
+    Args:
+        config: Transform configuration containing 'columns' dict.
+
+    Returns:
+        CastColumnsTransform instance.
+    """
     return CastColumnsTransform(config)

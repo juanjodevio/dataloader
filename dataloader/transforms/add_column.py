@@ -108,7 +108,14 @@ class AddColumnTransform:
         )
 
     def _infer_arrow_type(self, value: Any) -> pa.DataType:
-        """Infer Arrow type from Python value."""
+        """Infer Arrow type from Python value.
+
+        Args:
+            value: Python value to infer type from.
+
+        Returns:
+            PyArrow DataType corresponding to the value.
+        """
         if value is None:
             return pa.null()
         elif isinstance(value, bool):
@@ -144,7 +151,15 @@ class AddColumnTransform:
         return self._evaluate_template(expr, value)
 
     def _evaluate_template(self, expr: str, original: str) -> Any:
-        """Evaluate a single template expression."""
+        """Evaluate a single template expression.
+
+        Args:
+            expr: Template expression to evaluate (e.g., "recipe.name").
+            original: Original template string to return if evaluation fails.
+
+        Returns:
+            Evaluated value or original template if evaluation fails.
+        """
         parts = expr.split(".")
         if len(parts) == 2 and parts[0] == "recipe" and parts[1] == "name":
             recipe_context = self._context.get("recipe", {})
@@ -159,5 +174,12 @@ class AddColumnTransform:
 
 @register_transform("add_column")
 def create_add_column_transform(config: dict[str, Any]) -> AddColumnTransform:
-    """Factory function for AddColumnTransform."""
+    """Factory function for AddColumnTransform.
+
+    Args:
+        config: Transform configuration containing 'name' and 'value'.
+
+    Returns:
+        AddColumnTransform instance.
+    """
     return AddColumnTransform(config)

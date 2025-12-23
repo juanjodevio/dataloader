@@ -99,10 +99,17 @@ def get_transform(
 
 
 def list_transform_types() -> list[str]:
-    """Return a list of all registered transform types."""
+    """Return a list of all registered transform types.
+
+    Returns:
+        Sorted list of transform type strings.
+    """
     return sorted(_transform_registry.keys())
 
 
 def clear_registry() -> None:
-    """Clear all registered transforms. Intended for testing only."""
+    """Clear all registered transforms.
+
+    Intended for testing only. Removes all transform registrations.
+    """
     _transform_registry.clear()

@@ -109,7 +109,14 @@ class TransformPipeline:
             )
 
     def _extract_step_config(self, step: TransformStep) -> dict[str, Any]:
-        """Extract configuration dict from step, excluding 'type' field."""
+        """Extract configuration dict from step, excluding 'type' field.
+
+        Args:
+            step: Transform step configuration.
+
+        Returns:
+            Dictionary of step configuration without the 'type' field.
+        """
         step_dict = step.model_dump()
         step_dict.pop("type", None)
         return step_dict

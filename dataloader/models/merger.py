@@ -50,7 +50,15 @@ def merge_recipes(parent: Dict[str, Any], child: Dict[str, Any]) -> Dict[str, An
 def _merge_transform_config(
     parent_transform: Dict[str, Any], child_transform: Dict[str, Any]
 ) -> Dict[str, Any]:
-    """Merge transform configs, concatenating steps lists."""
+    """Merge transform configs, concatenating steps lists.
+
+    Args:
+        parent_transform: Parent transform configuration.
+        child_transform: Child transform configuration.
+
+    Returns:
+        Merged transform configuration with concatenated steps.
+    """
     merged = parent_transform.copy()
 
     for key, child_value in child_transform.items():
@@ -89,7 +97,12 @@ def apply_delete_semantics(
 
 
 def _delete_path(data: Dict[str, Any], path: str) -> None:
-    """Delete a nested path from dictionary using dot notation."""
+    """Delete a nested path from dictionary using dot notation.
+
+    Args:
+        data: Dictionary to modify.
+        path: Dot-separated path to delete (e.g., 'transform.steps').
+    """
     parts = path.split(".")
     current = data
 
