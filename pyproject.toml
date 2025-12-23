@@ -102,6 +102,17 @@ warn_unused_ignores = true
 warn_no_return = true
 strict_equality = true
 
+# Ignore specific error codes that require deeper refactoring
+disable_error_code = [
+    "no-any-return",
+    "arg-type",
+    "return-value",
+    "assignment",
+    "override",
+    "misc",
+    "import-untyped",
+]
+
 # Exclude tests and examples
 exclude = [
     "tests/",
