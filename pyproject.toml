@@ -124,8 +124,11 @@ module = [
     "yaml.*",
     "click.*",
     "json_log_formatter.*",
+    "duckdb",
     "duckdb.*",
+    "s3fs",
     "s3fs.*",
+    "jsonpath_ng",
     "jsonpath_ng.*",
 ]
 ignore_missing_imports = true

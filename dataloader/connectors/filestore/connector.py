@@ -68,7 +68,7 @@ class FileStoreConnector:
                     "Merge write mode is not supported for FileStore. Use 'append' or 'overwrite'.",
                     context={"path": self._path, "write_mode": write_mode},
                 )
-            self._write_mode: Literal["append", "overwrite"] = write_mode  # type: ignore[assignment]
+            self._write_mode = write_mode
 
         # Check S3-specific dependencies if using S3 backend
         if self._backend == "s3":
@@ -562,7 +562,9 @@ class FileStoreConnector:
         #         context={"backend": self._backend, "path": self._path},
         #     )
 
-        if self._write_mode == "merge":
+        # This check is redundant (already validated in __init__) but kept for safety
+        # Mypy knows _write_mode is Literal["append", "overwrite"] so this comparison is safe
+        if self._write_mode == "merge":  # type: ignore[comparison-overlap]
             raise ConnectorError(
                 "Merge write mode is not supported for FileStore in v0.1. Use 'append' or 'overwrite'.",
                 context={"path": self._path, "write_mode": self._write_mode},
