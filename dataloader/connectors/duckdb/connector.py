@@ -99,13 +99,17 @@ class DuckDBConnector:
 
     def close(self) -> None:
         """Close the DuckDB connection."""
-        if self._conn is not None:
+        if hasattr(self, "_conn") and self._conn is not None:
             self._conn.close()
             self._conn = None
 
     def __del__(self) -> None:
         """Ensure connection is closed on garbage collection."""
-        self.close()
+        try:
+            self.close()
+        except Exception:
+            # Ignore errors during destruction (object may be partially initialized)
+            pass
 
     # ========== Reading methods ==========
 
