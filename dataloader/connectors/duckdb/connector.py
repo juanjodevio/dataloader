@@ -321,7 +321,9 @@ class DuckDBConnector:
                 if existing:
                     try:
                         # _qualified_table is validated config, not user input - safe to use in SQL
-                        conn.execute(f"DELETE FROM {self._qualified_table}")  # nosec B608
+                        conn.execute(
+                            f"DELETE FROM {self._qualified_table}"
+                        )  # nosec B608
                     except duckdb.Error as e:
                         # Error message formatting, not SQL query construction
                         raise ConnectorError(
