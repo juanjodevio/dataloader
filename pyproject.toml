@@ -84,6 +84,7 @@ dev = [
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",
     "moto>=4.0.0",
+    "pytest-env>=1.1.5",
 ]
 
 [project.scripts]
@@ -147,3 +148,8 @@ ignore_missing_imports = true
 [tool.bandit]
 exclude_dirs = ["tests", "examples", "build", "dist", ".venv", "venv"]
 skips = ["B101"]  # Skip assert_used test (common in tests)
+
+[tool.pytest_env]
+AWS_ACCESS_KEY_ID = "test"
+AWS_SECRET_ACCESS_KEY = "test"
+AWS_REGION = "us-east-1"

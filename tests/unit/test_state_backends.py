@@ -5,7 +5,7 @@ import tempfile
 from pathlib import Path
 
 import pytest
-
+from moto import mock_aws
 from dataloader.core.exceptions import StateError
 from dataloader.core.state_backend import (
     DynamoDBStateBackend,
@@ -70,7 +70,7 @@ def test_create_state_backend_s3():
     assert backend.bucket == "my-bucket"
     assert backend.prefix == "state/"
 
-
+@mock_aws
 def test_create_state_backend_dynamodb():
     """Test state backend factory for DynamoDB backend."""
     backend = create_state_backend("dynamodb:my-table")
