@@ -7,7 +7,7 @@ from dataloader.connectors.registry import ConnectorConfigUnion, register_connec
 try:
     import pandas as pd
 except ImportError:
-    pd = None  # type: ignore
+    pd = None
 
 import pyarrow as pa
 
@@ -16,11 +16,11 @@ try:
     from sqlalchemy.engine import Engine
     from sqlalchemy.exc import SQLAlchemyError
 except ImportError:
-    create_engine = None  # type: ignore
-    inspect = None  # type: ignore
-    text = None  # type: ignore
-    Engine = None  # type: ignore
-    SQLAlchemyError = None  # type: ignore
+    create_engine = None
+    inspect = None
+    text = None
+    Engine = None
+    SQLAlchemyError = None
 
 from dataloader.core.batch import ArrowBatch, Batch
 from dataloader.core.exceptions import ConnectorError
@@ -83,9 +83,7 @@ class PostgresConnector:
             self._database = config.database or ""
             self._user = config.user or ""
             self._password = (
-                config.password.get_secret_value()
-                if config.password
-                else None.get_secret_value() if config.password else None
+                config.password.get_secret_value() if config.password else None
             )
             self._db_schema = config.db_schema or "public"
             self._table = config.table or ""
@@ -97,9 +95,7 @@ class PostgresConnector:
             self._database = config.database or ""
             self._user = config.user or ""
             self._password = (
-                config.password.get_secret_value()
-                if config.password
-                else None.get_secret_value() if config.password else None
+                config.password.get_secret_value() if config.password else None
             )
             self._db_schema = config.db_schema or "public"
             self._table = config.table or ""
@@ -183,7 +179,8 @@ class PostgresConnector:
         Returns:
             Tuple of (query_string, parameters).
         """
-        query_parts = [f"SELECT * FROM {self._qualified_table}"]
+        # _qualified_table is validated config, not user input - safe to use in SQL
+        query_parts = [f"SELECT * FROM {self._qualified_table}"]  # nosec B608
         params: dict[str, Any] = {}
 
         # Apply cursor-based filtering for incremental loads

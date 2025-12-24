@@ -58,7 +58,7 @@ def _import_module(module_path: str):
         if spec is None or spec.loader is None:
             raise TransformError(f"Cannot load module from path: {module_path}")
         module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)  # type: ignore[arg-type]
+        spec.loader.exec_module(module)
         return module
 
     try:

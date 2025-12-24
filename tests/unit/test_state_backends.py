@@ -1,10 +1,12 @@
 """Unit tests for state backends."""
 
 import json
+import os
 import tempfile
 from pathlib import Path
 
 import pytest
+from moto import mock_aws
 
 from dataloader.core.exceptions import StateError
 from dataloader.core.state_backend import (
@@ -71,15 +73,28 @@ def test_create_state_backend_s3():
     assert backend.prefix == "state/"
 
 
+@mock_aws
 def test_create_state_backend_dynamodb():
     """Test state backend factory for DynamoDB backend."""
-    backend = create_state_backend("dynamodb:my-table")
+    # Test with region specified in config
+    backend = create_state_backend("dynamodb:my-table:us-east-1")
     assert isinstance(backend, DynamoDBStateBackend)
     assert backend.table_name == "my-table"
 
-    backend2 = create_state_backend("dynamodb:my-table:us-east-1")
-    assert isinstance(backend2, DynamoDBStateBackend)
-    assert backend2.table_name == "my-table"
+    # Test with region from AWS_REGION environment variable
+    os.environ["AWS_REGION"] = "us-west-2"
+    try:
+        backend2 = create_state_backend("dynamodb:my-table")
+        assert isinstance(backend2, DynamoDBStateBackend)
+        assert backend2.table_name == "my-table"
+    finally:
+        os.environ.pop("AWS_REGION", None)
+
+    # Test that exception is raised when no region is available
+    if "AWS_REGION" in os.environ:
+        del os.environ["AWS_REGION"]
+    with pytest.raises(ValueError, match="DynamoDB region must be specified"):
+        create_state_backend("dynamodb:my-table")
 
 
 def test_create_state_backend_invalid():

@@ -11,16 +11,16 @@ try:
     from requests.exceptions import RequestException, Timeout
     from urllib3.util.retry import Retry
 except ImportError:
-    requests = None  # type: ignore
-    HTTPAdapter = None  # type: ignore
-    RequestException = None  # type: ignore
-    Timeout = None  # type: ignore
-    Retry = None  # type: ignore
+    requests = None
+    HTTPAdapter = None
+    RequestException = None
+    Timeout = None
+    Retry = None
 
 try:
     from jsonpath_ng import parse as parse_jsonpath
 except ImportError:
-    parse_jsonpath = None  # type: ignore
+    parse_jsonpath = None
 
 import pyarrow as pa
 
