@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 from moto import mock_aws
+
 from dataloader.core.exceptions import StateError
 from dataloader.core.state_backend import (
     DynamoDBStateBackend,
@@ -70,6 +71,7 @@ def test_create_state_backend_s3():
     assert isinstance(backend, S3StateBackend)
     assert backend.bucket == "my-bucket"
     assert backend.prefix == "state/"
+
 
 @mock_aws
 def test_create_state_backend_dynamodb():
