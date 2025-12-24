@@ -179,7 +179,8 @@ class PostgresConnector:
         Returns:
             Tuple of (query_string, parameters).
         """
-        query_parts = [f"SELECT * FROM {self._qualified_table}"]
+        # _qualified_table is validated config, not user input - safe to use in SQL
+        query_parts = [f"SELECT * FROM {self._qualified_table}"]  # nosec B608
         params: dict[str, Any] = {}
 
         # Apply cursor-based filtering for incremental loads

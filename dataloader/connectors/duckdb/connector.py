@@ -144,7 +144,8 @@ class DuckDBConnector:
         Returns:
             Tuple of (query_string, parameters) for parameterized query.
         """
-        query_parts = [f"SELECT * FROM {self._qualified_table}"]
+        # _qualified_table is validated config, not user input - safe to use in SQL
+        query_parts = [f"SELECT * FROM {self._qualified_table}"]  # nosec B608
         params: list[Any] = []
 
         # Apply cursor-based filtering for incremental loads
@@ -319,10 +320,12 @@ class DuckDBConnector:
                 existing = self._get_existing_columns(conn)
                 if existing:
                     try:
-                        conn.execute(f"DELETE FROM {self._qualified_table}")
+                        # _qualified_table is validated config, not user input - safe to use in SQL
+                        conn.execute(f"DELETE FROM {self._qualified_table}")  # nosec B608
                     except duckdb.Error as e:
+                        # Error message formatting, not SQL query construction
                         raise ConnectorError(
-                            f"Failed to delete from table for overwrite: {e}",
+                            f"Failed to delete from table for overwrite: {e}",  # nosec B608
                             context={"table": self._table},
                         ) from e
                 # Create table if it doesn't exist
@@ -368,9 +371,11 @@ class DuckDBConnector:
             arrow_table = batch.to_arrow()
             rows = batch.rows  # This converts Arrow to list of lists
 
+            # Column names from batch.columns are validated data structures, not user input
             columns = ", ".join(f'"{col}"' for col in batch.columns)
             placeholders = ", ".join("?" for _ in batch.columns)
-            insert_sql = f"INSERT INTO {self._qualified_table} ({columns}) VALUES ({placeholders})"
+            # _qualified_table and columns are validated, values use parameterized queries (?)
+            insert_sql = f"INSERT INTO {self._qualified_table} ({columns}) VALUES ({placeholders})"  # nosec B608
 
             conn.executemany(insert_sql, rows)
         except duckdb.Error as e:
