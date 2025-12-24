@@ -477,6 +477,20 @@ def create_state_backend(config: str) -> StateBackend:
         parts = config.split(":", 2)
         table_name = parts[1]
         region = parts[2] if len(parts) > 2 else None
+        
+        # If region not specified, try AWS_REGION environment variable
+        if region is None:
+            import os  # noqa: F401  # Imported conditionally to avoid unnecessary dependency
+            
+            region = os.getenv("AWS_REGION")
+        
+        # If still no region, raise explicit error
+        if region is None:
+            raise ValueError(
+                "DynamoDB region must be specified either in config "
+                "(dynamodb:table-name:region) or via AWS_REGION environment variable"
+            )
+        
         return DynamoDBStateBackend(table_name, region)
 
     else:
