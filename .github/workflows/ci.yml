@@ -38,7 +38,7 @@ jobs:
         run: uv run mypy -p dataloader
 
       - name: Run bandit (security scan)
-        run: uv run bandit -r dataloader
+        run: uv run bandit -r dataloader -ll
 
   unit-tests:
     runs-on: ubuntu-latest
